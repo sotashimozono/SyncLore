@@ -4,10 +4,10 @@
   "description": "Repository for deploying articles to Qiita and Zenn",
   "main": "index.js",
   "scripts": {
-    "convert":       "node src/convert.js",
-    "deploy:qiita":  "npx qiita publish --all",
-    "deploy:all":    "npm run convert && npm run deploy:qiita",
-    "preview:zenn":  "npx zenn preview"
+    "convert": "node src/convert.js",
+    "deploy:qiita": "npx qiita publish --all",
+    "deploy:all": "npm run convert && npm run deploy:qiita",
+    "preview:zenn": "npx zenn preview"
   },
   "repository": {
     "type": "git",
@@ -22,8 +22,8 @@
   },
   "homepage": "https://github.com/sotashimozono/SyncLore#readme",
   "dependencies": {
+    "@qiita/qiita-cli": "^1.8.0",
     "gray-matter": "^4.0.3",
-    "qiita-cli": "^1.0.4",
     "zenn-cli": "^0.4.6"
   }
 }
