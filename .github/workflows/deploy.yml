@@ -14,18 +14,19 @@ jobs:
     runs-on: ubuntu-latest
 
     permissions:
-      contents: write # git push のために書き込み権限が必要
+      contents: write
+      pull-requests: write
 
     steps:
       # ── 1. チェックアウト ──────────────────────────────────────────────────
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       # ── 2. Node.js セットアップ ────────────────────────────────────────────
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: "npm"
@@ -38,17 +39,29 @@ jobs:
       - name: Convert drafts to platform-specific articles
         run: node src/convert.js
 
-      # ── 5. 変換済みファイルをコミット & プッシュ ───────────────────────────
-      - name: Commit and push converted articles
-        run: |
-          git config --local user.name  "github-actions[bot]"
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git add articles/zenn/ articles/qiita/ images/ || true
-          # 差分がある場合のみコミット
-          git diff --staged --quiet || git commit -m "[CI] sync articles from drafts"
-          git push
+      # ── 5. 変換済みファイルを PR として作成 ──────────────────────────────
+      - name: Create Pull Request for converted articles
+        id: cpr
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "[CI] sync articles from drafts"
+          branch: ci/deploy-sync-articles
+          delete-branch: true
+          title: "[CI] Sync articles from drafts"
+          body: |
+            `drafts/` に追加・変更された記事を各プラットフォーム向けに変換しました。
+            - `articles/zenn/` および `articles/qiita/` に配備済み
+            - 変換済みの draft は削除済み
 
-      # ── 6. Qiita へ公開 ────────────────────────────────────────────────────
+      # ── 6. 変更がある場合のみ auto-merge を有効化 ─────────────────────────
+      - name: Enable auto-merge
+        if: steps.cpr.outputs.pull-request-number
+        run: gh pr merge ${{ steps.cpr.outputs.pull-request-number }} --auto --merge
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── 7. Qiita へ公開 ────────────────────────────────────────────────────
       # @qiita/qiita-cli は dotenvx 経由で .env からトークンを読む。
       # QIITA_TOKEN を一時的に .env に書き込み、publish 後に削除する。
       - name: Publish to Qiita
