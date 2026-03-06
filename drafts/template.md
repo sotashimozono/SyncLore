@@ -3,7 +3,7 @@ title: "記事タイトルをここに書く"
 emoji: "✨"
 type: "tech"
 topics: ["julia", "oss"]
-published: false
+publish: false
 qiita_id: ""
 ---
 
