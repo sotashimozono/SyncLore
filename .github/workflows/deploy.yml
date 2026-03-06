@@ -49,8 +49,12 @@ jobs:
           git push
 
       # ── 6. Qiita へ公開 ────────────────────────────────────────────────────
-      # Zenn は上記 push を検知して自動反映されるため、Qiita のみ明示的に publish する
+      # @qiita/qiita-cli は dotenvx 経由で .env からトークンを読む。
+      # QIITA_TOKEN を一時的に .env に書き込み、publish 後に削除する。
       - name: Publish to Qiita
         env:
           QIITA_TOKEN: ${{ secrets.QIITA_TOKEN }}
-        run: npx qiita publish --all
+        run: |
+          echo "QIITA_TOKEN=$QIITA_TOKEN" > .env
+          npx qiita publish --all
+          rm .env
