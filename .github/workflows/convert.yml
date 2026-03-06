@@ -41,7 +41,7 @@ jobs:
           title: "[CI] Sync articles from drafts"
           body: |
             `drafts/` に追加・変更された記事を各プラットフォーム向けに変換しました。
-            - `articles/zenn/` および `articles/qiita/` に配備済み
+            - `public/` および `books/` に配備済み
             - 変換済みの draft は削除済み
 
       # 変更がある場合のみ auto-merge を有効化

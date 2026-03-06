@@ -29,8 +29,8 @@ const matter = require('gray-matter');
 
 // ─── パス定義 ────────────────────────────────────────────────────────────────
 const DRAFTS_DIR  = path.resolve(__dirname, '../drafts');
-const ZENN_DIR    = path.resolve(__dirname, '../articles/zenn');
-const QIITA_DIR   = path.resolve(__dirname, '../articles/qiita');
+const ZENN_DIR    = path.resolve(__dirname, '../books');
+const QIITA_DIR   = path.resolve(__dirname, '../public');
 const DRAFT_IMG   = path.resolve(__dirname, '../drafts/images');
 const ZENN_IMG    = path.resolve(__dirname, '../images');
 
