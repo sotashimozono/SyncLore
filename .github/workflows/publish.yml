@@ -1,0 +1,33 @@
+name: Publish to Zenn and Qiita
+
+on:
+  push:
+    branches: [main]
+    paths: ["articles/**"]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Zenn は articles/zenn/ の変更を GitHub 連携で自動検知するため
+      # Qiita のみ明示的に publish する
+      - name: Publish to Qiita
+        env:
+          QIITA_TOKEN: ${{ secrets.QIITA_TOKEN }}
+        run: |
+          echo "QIITA_TOKEN=$QIITA_TOKEN" > .env
+          npx qiita publish --all
+          rm .env
