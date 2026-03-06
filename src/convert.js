@@ -1,12 +1,12 @@
 /**
  * convert.js
  *
- * drafts/*.md を読み込み、published: true のファイルを
+ * drafts/*.md を読み込み、publish: true のファイルを
  * Zenn 形式 (articles/zenn/) と Qiita 形式 (articles/qiita/) に変換する。
  *
  * 処理内容:
  *   1. gray-matter でフロントマターをパース
- *   2. published: true のファイルのみ対象
+ *   2. publish: true のファイルのみ対象
  *   3. Zenn 用・Qiita 用フロントマターに変換
  *   4. Qiita の既存 id を引き継ぐ
  *   5. 画像を drafts/images/<slug>/ → images/<slug>/ にコピー
@@ -17,7 +17,7 @@
  *   emoji:     絵文字 (Zenn 専用、省略時は 📝)
  *   type:      tech | idea (Zenn 専用、省略時は tech)
  *   topics:    タグ配列 (共通)
- *   published: true | false (false のままでは変換されない)
+ *   publish: true | false (false のままでは変換されない)
  *   qiita_id:  Qiita 記事 ID (初回空欄、Qiita デプロイ後に自動付与)
  */
 
@@ -105,7 +105,7 @@ function toZennFrontmatter(data) {
     emoji:     data.emoji     || '📝',
     type:      data.type      || 'tech',
     topics:    data.topics    || [],
-    published: data.published === true,
+    publish: data.publish === true,
   };
 }
 
@@ -114,7 +114,7 @@ function toQiitaFrontmatter(data, existingId) {
   return {
     title:   data.title || '(タイトル未設定)',
     tags,
-    private: data.published !== true,
+    private: data.publish !== true,
     id:      existingId || null,
   };
 }
@@ -131,7 +131,7 @@ function buildZennContent(fm, body) {
     `type: ${fm.type}`,
     'topics:',
     topicsYaml,
-    `published: ${fm.published}`,
+    `publish: ${fm.publish}`,
     '---',
   ].join('\n');
   return `${header}\n${body}`;
@@ -168,9 +168,9 @@ for (const file of files) {
   const parsed  = matter(raw);
   const data    = parsed.data;
 
-  // published: true のみ対象
-  if (!data.published) {
-    console.log(`  [SKIP] ${file} (published: false)`);
+  // publish: true のみ対象
+  if (!data.publish) {
+    console.log(`  [SKIP] ${file} (publish: false)`);
     skipped++;
     continue;
   }
