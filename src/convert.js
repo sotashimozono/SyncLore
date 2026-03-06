@@ -193,7 +193,10 @@ for (const file of files) {
   // ── 画像コピー ─────────────────────────────────────────────────────────────
   copyImages(slug);
 
-  console.log(`  [OK]   ${file} → zenn & qiita${existingId ? ` (qiita_id: ${existingId})` : ''}`);
+  // Remove source file from drafts/ (articles/ becomes the permanent record)
+  fs.unlinkSync(srcPath);
+
+  console.log(`  [OK]   ${file} => zenn & qiita${existingId ? ` (qiita_id: ${existingId})` : ''} (draft removed)`);
   converted++;
 }
 
