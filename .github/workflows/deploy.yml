@@ -1,0 +1,56 @@
+name: Deploy to Zenn & Qiita
+
+on:
+  push:
+    branches:
+      - main
+    # CI が生成したコミット（[CI] プレフィックス）ではトリガーしない
+    # → 下の "if" 条件で制御（GitHub Actions 側の制約のため paths-ignore では防げない）
+
+jobs:
+  deploy:
+    # [CI] プレフィックスのコミットは再トリガーしない（無限ループ防止）
+    if: "!startsWith(github.event.head_commit.message, '[CI]')"
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write # git push のために書き込み権限が必要
+
+    steps:
+      # ── 1. チェックアウト ──────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── 2. Node.js セットアップ ────────────────────────────────────────────
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      # ── 3. 依存パッケージのインストール ───────────────────────────────────
+      - name: Install dependencies
+        run: npm ci
+
+      # ── 4. drafts/ → articles/ 変換 ────────────────────────────────────────
+      - name: Convert drafts to platform-specific articles
+        run: node src/convert.js
+
+      # ── 5. 変換済みファイルをコミット & プッシュ ───────────────────────────
+      - name: Commit and push converted articles
+        run: |
+          git config --local user.name  "github-actions[bot]"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git add articles/zenn/ articles/qiita/ images/ || true
+          # 差分がある場合のみコミット
+          git diff --staged --quiet || git commit -m "[CI] sync articles from drafts"
+          git push
+
+      # ── 6. Qiita へ公開 ────────────────────────────────────────────────────
+      # Zenn は上記 push を検知して自動反映されるため、Qiita のみ明示的に publish する
+      - name: Publish to Qiita
+        env:
+          QIITA_TOKEN: ${{ secrets.QIITA_TOKEN }}
+        run: npx qiita publish --all
