@@ -21,18 +21,18 @@
  *   qiita_id:  Qiita 記事 ID (初回空欄、Qiita デプロイ後に自動付与)
  */
 
-'use strict';
+"use strict";
 
-const fs   = require('fs');
-const path = require('path');
-const matter = require('gray-matter');
+const fs = require("fs");
+const path = require("path");
+const matter = require("gray-matter");
 
 // ─── パス定義 ────────────────────────────────────────────────────────────────
-const DRAFTS_DIR  = path.resolve(__dirname, '../drafts');
-const ZENN_DIR    = path.resolve(__dirname, '../books');
-const QIITA_DIR   = path.resolve(__dirname, '../public');
-const DRAFT_IMG   = path.resolve(__dirname, '../drafts/images');
-const ZENN_IMG    = path.resolve(__dirname, '../images');
+const DRAFTS_DIR = path.resolve(__dirname, "../drafts");
+const ZENN_DIR = path.resolve(__dirname, "../articles");
+const QIITA_DIR = path.resolve(__dirname, "../public");
+const DRAFT_IMG = path.resolve(__dirname, "../drafts/images");
+const ZENN_IMG = path.resolve(__dirname, "../images");
 
 // ─── 免責事項 ─────────────────────────────────────────────────────────────────
 const DISCLAIMER = `
@@ -47,7 +47,7 @@ const DISCLAIMER = `
 `;
 
 // ─── ディレクトリ作成 ──────────────────────────────────────────────────────────
-[ZENN_DIR, QIITA_DIR, ZENN_IMG].forEach(dir => {
+[ZENN_DIR, QIITA_DIR, ZENN_IMG].forEach((dir) => {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
@@ -90,7 +90,7 @@ function getExistingQiitaId(slug) {
   const qiitaPath = path.join(QIITA_DIR, `${slug}.md`);
   if (!fs.existsSync(qiitaPath)) return null;
   try {
-    const parsed = matter(fs.readFileSync(qiitaPath, 'utf8'));
+    const parsed = matter(fs.readFileSync(qiitaPath, "utf8"));
     return parsed.data.id || null;
   } catch {
     return null;
@@ -101,21 +101,21 @@ function getExistingQiitaId(slug) {
 
 function toZennFrontmatter(data) {
   return {
-    title:     data.title     || '(タイトル未設定)',
-    emoji:     data.emoji     || '📝',
-    type:      data.type      || 'tech',
-    topics:    data.topics    || [],
+    title: data.title || "(タイトル未設定)",
+    emoji: data.emoji || "📝",
+    type: data.type || "tech",
+    topics: data.topics || [],
     publish: data.publish === true,
   };
 }
 
 function toQiitaFrontmatter(data, existingId) {
-  const tags = (data.topics || []).map(t => ({ name: t }));
+  const tags = (data.topics || []).map((t) => ({ name: t }));
   return {
-    title:   data.title || '(タイトル未設定)',
+    title: data.title || "(タイトル未設定)",
     tags,
     private: data.publish !== true,
-    id:      existingId || null,
+    id: existingId || null,
   };
 }
 
@@ -123,17 +123,17 @@ function toQiitaFrontmatter(data, existingId) {
  * Zenn 用コンテンツを手動 YAML で組み立てる（gray-matter stringify は絵文字を Unicode エスケープするため）
  */
 function buildZennContent(fm, body) {
-  const topicsYaml = fm.topics.map(t => `  - ${t}`).join('\n');
+  const topicsYaml = fm.topics.map((t) => `  - ${t}`).join("\n");
   const header = [
-    '---',
+    "---",
     `title: "${fm.title}"`,
     `emoji: "${fm.emoji}"`,
     `type: ${fm.type}`,
-    'topics:',
+    "topics:",
     topicsYaml,
     `publish: ${fm.publish}`,
-    '---',
-  ].join('\n');
+    "---",
+  ].join("\n");
   return `${header}\n${body}`;
 }
 
@@ -141,32 +141,34 @@ function buildZennContent(fm, body) {
  * Qiita 用コンテンツを手動 YAML で組み立てる
  */
 function buildQiitaContent(fm, body) {
-  const tagsYaml = fm.tags.map(t => `  - name: "${t.name}"`).join('\n');
-  const idLine   = fm.id ? `id: ${fm.id}` : 'id: null';
+  const tagsYaml = fm.tags.map((t) => `  - name: "${t.name}"`).join("\n");
+  const idLine = fm.id ? `id: ${fm.id}` : "id: null";
   const header = [
-    '---',
+    "---",
     `title: "${fm.title}"`,
-    'tags:',
+    "tags:",
     tagsYaml,
     `private: ${fm.private}`,
     idLine,
-    '---',
-  ].join('\n');
+    "---",
+  ].join("\n");
   return `${header}\n${body}`;
 }
 
 // ─── メイン処理 ───────────────────────────────────────────────────────────────
 
 let converted = 0;
-let skipped   = 0;
+let skipped = 0;
 
-const files = fs.readdirSync(DRAFTS_DIR).filter(f => path.extname(f) === '.md');
+const files = fs
+  .readdirSync(DRAFTS_DIR)
+  .filter((f) => path.extname(f) === ".md");
 
 for (const file of files) {
   const srcPath = path.join(DRAFTS_DIR, file);
-  const raw     = fs.readFileSync(srcPath, 'utf8');
-  const parsed  = matter(raw);
-  const data    = parsed.data;
+  const raw = fs.readFileSync(srcPath, "utf8");
+  const parsed = matter(raw);
+  const data = parsed.data;
 
   // publish: true のみ対象
   if (!data.publish) {
@@ -175,20 +177,20 @@ for (const file of files) {
     continue;
   }
 
-  const slug       = path.basename(file, '.md');
-  const body       = parsed.content.trimEnd();
+  const slug = path.basename(file, ".md");
+  const body = parsed.content.trimEnd();
   const bodyWithDisclaimer = body + DISCLAIMER;
 
   // ── Zenn ──────────────────────────────────────────────────────────────────
-  const zennFm      = toZennFrontmatter(data);
+  const zennFm = toZennFrontmatter(data);
   const zennContent = buildZennContent(zennFm, bodyWithDisclaimer);
-  fs.writeFileSync(path.join(ZENN_DIR, file), zennContent, 'utf8');
+  fs.writeFileSync(path.join(ZENN_DIR, file), zennContent, "utf8");
 
   // ── Qiita ─────────────────────────────────────────────────────────────────
-  const existingId   = getExistingQiitaId(slug);
-  const qiitaFm      = toQiitaFrontmatter(data, existingId);
+  const existingId = getExistingQiitaId(slug);
+  const qiitaFm = toQiitaFrontmatter(data, existingId);
   const qiitaContent = buildQiitaContent(qiitaFm, bodyWithDisclaimer);
-  fs.writeFileSync(path.join(QIITA_DIR, file), qiitaContent, 'utf8');
+  fs.writeFileSync(path.join(QIITA_DIR, file), qiitaContent, "utf8");
 
   // ── 画像コピー ─────────────────────────────────────────────────────────────
   copyImages(slug);
@@ -196,7 +198,9 @@ for (const file of files) {
   // Remove source file from drafts/ (articles/ becomes the permanent record)
   fs.unlinkSync(srcPath);
 
-  console.log(`  [OK]   ${file} => zenn & qiita${existingId ? ` (qiita_id: ${existingId})` : ''} (draft removed)`);
+  console.log(
+    `  [OK]   ${file} => zenn & qiita${existingId ? ` (qiita_id: ${existingId})` : ""} (draft removed)`,
+  );
   converted++;
 }
 
