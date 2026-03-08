@@ -84,14 +84,14 @@ function copyImagesRecursive(src, dst) {
 }
 
 /**
- * Qiita の既存ファイルから id を読み出す
+ * Qiita の既存ファイルからフロントマターを読み出す
  */
-function getExistingQiitaId(slug) {
+function getExistingQiitaFrontmatter(slug) {
   const qiitaPath = path.join(QIITA_DIR, `${slug}.md`);
   if (!fs.existsSync(qiitaPath)) return null;
   try {
     const parsed = matter(fs.readFileSync(qiitaPath, "utf8"));
-    return parsed.data.id || null;
+    return parsed.data;
   } catch {
     return null;
   }
@@ -109,13 +109,20 @@ function toZennFrontmatter(data) {
   };
 }
 
-function toQiitaFrontmatter(data, existingId) {
+function toQiitaFrontmatter(data, existingFm) {
   const tags = (data.topics || []).map((t) => ({ name: t }));
   return {
     title: data.title || "(タイトル未設定)",
     tags,
     private: data.publish !== true,
-    id: existingId || null,
+    id: (existingFm && existingFm.id) || null,
+    organization_url_name:
+      (existingFm && existingFm.organization_url_name) || "",
+    slide:
+      existingFm && typeof existingFm.slide === "boolean"
+        ? existingFm.slide
+        : false,
+    updated_at: (existingFm && existingFm.updated_at) || "",
   };
 }
 
@@ -149,6 +156,9 @@ function buildQiitaContent(fm, body) {
     "tags:",
     tagsYaml,
     `private: ${fm.private}`,
+    `updated_at: "${fm.updated_at}"`,
+    `organization_url_name: "${fm.organization_url_name}"`,
+    `slide: ${fm.slide}`,
     idLine,
     "---",
   ].join("\n");
@@ -187,8 +197,8 @@ for (const file of files) {
   fs.writeFileSync(path.join(ZENN_DIR, file), zennContent, "utf8");
 
   // ── Qiita ─────────────────────────────────────────────────────────────────
-  const existingId = getExistingQiitaId(slug);
-  const qiitaFm = toQiitaFrontmatter(data, existingId);
+  const existingFm = getExistingQiitaFrontmatter(slug);
+  const qiitaFm = toQiitaFrontmatter(data, existingFm);
   const qiitaContent = buildQiitaContent(qiitaFm, bodyWithDisclaimer);
   fs.writeFileSync(path.join(QIITA_DIR, file), qiitaContent, "utf8");
 
@@ -199,7 +209,7 @@ for (const file of files) {
   fs.unlinkSync(srcPath);
 
   console.log(
-    `  [OK]   ${file} => zenn & qiita${existingId ? ` (qiita_id: ${existingId})` : ""} (draft removed)`,
+    `  [OK]   ${file} => zenn & qiita${qiitaFm.id ? ` (qiita_id: ${qiitaFm.id})` : ""} (draft removed)`,
   );
   converted++;
 }

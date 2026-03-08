@@ -1,14 +1,13 @@
 ---
-title: "Path Verification Test"
-tags:
-  - name: "test"
-private: false
-updated_at: ""
-organization_url_name: ""
-slide: false
-id: null
+title: "Qiita Schema Fix Test"
+emoji: "🔧"
+type: tech
+topics:
+  - qiita
+  - test
+publish: true
 ---
-This is a test to verify that Zenn articles go to `/articles` and Qiita articles go to `/public`.
+Testing the new Qiita frontmatter schema in `convert.js`.
 
 ---
 
