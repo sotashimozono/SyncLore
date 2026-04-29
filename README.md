@@ -1,9 +1,10 @@
 # SyncLore
 
-GitHub を Single Source of Truth として、`drafts/` に書いた Markdown 記事を  
-**Zenn・Qiita の両方へ自動デプロイ**する一元管理リポジトリ。
+GitHub を Single Source of Truth として、`drafts/` に書いた Markdown を
+**Zenn・Qiita の両方に自動公開**する一元管理リポジトリ。
 
-`published: true` にして `main` へプッシュするだけで、両サービスに記事が反映されます。
+`drafts/<slug>.md` の `publish: true` で `main` に push するだけで反映。
+`publish: false` に戻して push すれば両方とも非公開状態に書き戻されます。
 
 ---
 
@@ -11,18 +12,26 @@ GitHub を Single Source of Truth として、`drafts/` に書いた Markdown �
 
 ```
 SyncLore/
-├── drafts/            ← 原稿を書く場所（マスターソース）
+├── drafts/                ← ★ 原稿を書く場所 (SSoT、人間が編集)
+│   ├── template.md
 │   ├── my-article.md
-│   └── images/        ← 記事ごとの画像 (drafts/images/<slug>/)
-├── articles/
-│   ├── zenn/          ← 変換済み公開記事（Zenn 用）
-│   └── qiita/         ← 変換済み公開記事（Qiita 用）
-├── images/            ← Zenn が参照する画像ディレクトリ
+│   └── images/
+│       └── my-article/    ← 記事ごとの画像
+│           └── figure1.png
+├── articles/              ← 生成物 (Zenn-CLI 規約)
+│   └── my-article.md
+├── public/                ← 生成物 (Qiita-CLI 規約・Qiita id を保管)
+│   └── my-article.md
+├── images/                ← 生成物 (Zenn が参照する画像コピー)
+│   └── my-article/
+│       └── figure1.png
 └── src/
-    └── convert.js     ← 変換スクリプト
+    └── convert.js         ← drafts/ → articles/, public/, images/ を冪等変換
 ```
 
-> `articles/` を見れば過去の公開済み記事を一覧できます。
+> `articles/`・`public/`・`images/` は CI が自動生成するので **手で編集しない**。
+> Qiita の記事 id は `public/<slug>.md` の `id` フィールドに保管され、qiita-cli が
+> 公開時に自動で書き戻します。
 
 ---
 
@@ -30,28 +39,27 @@ SyncLore/
 
 ### 1. 新しい記事を書く
 
-`drafts/template.md` をコピーしてファイル名（= スラグ）を決めます。
+`drafts/template.md` をコピーしてスラグ名を決めます。
 
 ```
 drafts/my-new-article.md
 ```
 
-フロントマターを記入します：
+フロントマター:
 
 ```yaml
 ---
 title: "記事タイトル"
-emoji: "✨"          # Zenn 専用（省略時は 📝）
-type: "tech"         # tech | idea
-topics: ["julia"]    # タグ（Zenn は最大 5 個）
-published: false     # 下書き中は false のまま
-qiita_id: ""         # 初回は空欄。Qiita 初回デプロイ後に自動で付与される
+emoji: "✨"              # Zenn 専用 (省略時は 📝)
+type: "tech"             # tech | idea (Zenn 専用)
+topics: ["julia", "oss"] # タグ。Zenn は最大 5 個
+publish: false           # 下書き中は false
 ---
 ```
 
 ### 2. 公開する
 
-`published: true` に変更して `main` ブランチへプッシュ。
+`publish: true` に変更して `main` ブランチへ push。
 
 ```
 git add drafts/my-new-article.md
@@ -59,54 +67,68 @@ git commit -m "Add: my-new-article"
 git push
 ```
 
-GitHub Actions が自動で以下を実施します：
+GitHub Actions (`sync.yml`) が以下を **1 本の workflow で atomic に** 実行します:
 
-| ステップ | 内容 |
-|----------|------|
-| convert  | `drafts/*.md` を Zenn・Qiita 形式に変換 |
-| git push | `articles/zenn/` と `articles/qiita/` にコミット |
-| Zenn     | GitHub 連携により自動反映 |
-| Qiita    | `qiita publish --all` で公開 |
+| ステップ      | 内容                                                                                                |
+| ------------- | --------------------------------------------------------------------------------------------------- |
+| convert       | `drafts/*.md` を `articles/`・`public/`・`images/` に冪等再生成                                     |
+| qiita publish | `npx qiita publish --all` で Qiita 投稿 / 更新 (新規時は `public/<slug>.md` に id を書き戻し)        |
+| commit & push | `articles/`・`public/`・`images/` の変更を main に push                                              |
+| Zenn          | GitHub 連携 webhook が main の commit を検知して反映                                                |
 
-### 3. 画像を使う
+Qiita publish が失敗したときは commit 自体が走らないため、Zenn 側だけ進む / Qiita id がズレるといった半端な状態になりません。失敗時は workflow を re-run。
 
-画像は `drafts/images/<スラグ>/` に置きます。
+### 3. 非公開に戻す (unpublish)
+
+`publish: false` に戻して push すると:
+
+- `articles/<slug>.md` → `published: false` (Zenn 側で draft 扱い)
+- `public/<slug>.md` → `private: true` (Qiita 側で限定共有 = 非公開)
+
+`drafts/<slug>.md` は **削除されません**。完全に取り下げたい場合は `articles/<slug>.md`・`public/<slug>.md`・`images/<slug>/` を手で削除してから `drafts/<slug>.md` を消してください (誤検知防止のため CI は drafts 削除を追跡しません)。
+
+### 4. 記事を修正する
+
+`drafts/<slug>.md` を編集して push するだけ。`articles/`・`public/` は毎回再生成されるので、Qiita の id は維持されたまま本文だけ更新されます。免責事項は HTML コメントマーカで囲まれているため、再生成しても重複しません。
+
+### 5. 画像を使う
+
+画像は `drafts/images/<slug>/` に置きます。
 
 ```
 drafts/images/my-new-article/figure1.png
 ```
 
-スクリプトが自動で `images/my-new-article/` にコピーします。  
-記事内では Zenn 形式で参照します：
+CI が `images/<slug>/` にコピーします。記事内では Zenn 形式で参照:
 
 ```markdown
 ![説明](/images/my-new-article/figure1.png)
 ```
 
-### 4. ローカルプレビュー
+### 6. ローカルプレビュー
 
 ```bash
-npm run preview:zenn    # Zenn のプレビューサーバーを起動
-npm run convert         # 手動で変換のみ実行
+npm install
+npm run convert         # drafts/ → articles/, public/ を手動変換
+npm run preview:zenn    # Zenn のプレビューサーバー
 ```
 
 ---
 
-## 初期セットアップ（初回のみ）
+## 初期セットアップ (初回のみ)
 
 1. **依存パッケージをインストール**
-
    ```bash
    npm install
    ```
 
-2. **GitHub Secrets に `QIITA_TOKEN` を登録**  
+2. **GitHub Secrets に `QIITA_TOKEN` を登録**
    Settings → Secrets and variables → Actions → New repository secret
 
-3. **Zenn と GitHub リポジトリを連携**  
-   [Zenn の設定ページ](https://zenn.dev/dashboard/deploys) でこのリポジトリを連携する
+3. **Zenn と GitHub リポジトリを連携**
+   [Zenn のデプロイ設定](https://zenn.dev/dashboard/deploys) でこのリポジトリを連携
 
-4. **リポジトリを Public に設定**（GitHub Actions 無料枠のため）
+4. **リポジトリを Public に設定** (GitHub Actions 無料枠のため)
 
 ---
 
@@ -115,8 +137,8 @@ npm run convert         # 手動で変換のみ実行
 | 対象 | ライセンス |
 |------|-----------|
 | リポジトリ内のコード・スクリプト | [MIT License](./LICENSE) |
-| 記事本文（執筆物） | All Rights Reserved — 無断転載・再利用を禁じます |
+| 記事本文 (執筆物) | All Rights Reserved — 無断転載・再利用を禁じます |
 
-> **免責事項**  
-> 記事の内容は執筆時点のものであり、正確性・完全性を保証しません。  
+> **免責事項**
+> 記事の内容は執筆時点のものであり、正確性・完全性を保証しません。
 > 本リポジトリの利用によって生じたいかなる損害についても筆者は責任を負いません。
