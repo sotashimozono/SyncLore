@@ -3,6 +3,8 @@
 Markdown 記事を **Zenn と Qiita の両方に自動公開**する一元管理リポジトリ。
 `drafts/<slug>.md` を書いて main に push するだけで、両プラットフォームに同じ内容が反映されます。
 
+> 📦 このリポジトリは **GitHub Template Repository** です。「**Use this template**」ボタンから自分用の repo を作って使えます。下の[「自分用に fork して使う」](#自分用に-fork-して使う)を参照。
+
 ---
 
 ## できること
@@ -25,29 +27,57 @@ Markdown 記事を **Zenn と Qiita の両方に自動公開**する一元管理
 
 ---
 
-## クイックスタート (fork したあと)
+## 自分用に fork して使う
 
-1. **GitHub Secrets に `QIITA_TOKEN` を登録**
-   Settings → Secrets and variables → Actions → New repository secret
-   Qiita の [アプリケーション設定](https://qiita.com/settings/applications) で write スコープのトークンを発行
+このリポジトリは GitHub の **Template Repository** に設定済みです。GitHub 上で「**Use this template**」ボタンから自分用の repo を作るのが推奨ルート (fork でも動きます)。
 
-2. **Zenn と連携 (deploy branch を watch)**
-   [Zenn のデプロイ設定](https://zenn.dev/dashboard/deploys) でこのリポジトリを連携し、対象 branch を **`deploy`** に設定
-   (`main` ではなく `deploy` です。articles は deploy branch にしか置かれません)
+### 1. 複製
 
-3. **リポジトリを Public に設定** (GitHub Actions 無料枠のため)
+- **推奨**: ページ上部の **"Use this template" → "Create a new repository"**
+  → 新しい repo が作られ、`Include all branches` にチェックを入れると `deploy` branch も一緒にコピーされます (★ 入れ忘れ注意)
+- もしくは: 通常の "Fork" でも OK (deploy branch も自動でコピーされる)
 
-4. **記事を書いて push**
+### 2. ローカルに clone してデモ記事を片付ける
 
-   ```bash
-   cp drafts/template.md drafts/my-first-post.md
-   # 編集して publish: true にしてから
-   git add drafts/my-first-post.md
-   git commit -m "Add: my-first-post"
-   git push
-   ```
+このリポジトリには動作デモ用に [synclore-intro](https://qiita.com/sotashimozono/items/578f207e0ffb4eb7ecf5) という記事が入っています。**そのままだと自分の Qiita / Zenn に他人 (元 repo オーナ) の記事が出る**ため、まず削除します。
 
-   GitHub Actions の `sync.yml` が両プラットフォームに同時公開します。
+```bash
+git clone <your-new-repo-url>
+cd <your-new-repo>
+npm install
+git worktree add .deploy deploy   # 生成物 branch を .deploy/ に展開
+
+npm run init:fork                 # デモ記事を drafts/ と .deploy/ から削除
+
+# 確認して commit & push
+git add -A && git commit -m "init: remove SyncLore demo article" && git push
+cd .deploy && git add -A && git commit -m "init: remove SyncLore demo artifacts" && git push origin deploy && cd ..
+```
+
+### 3. Secrets / Variables / Public 化
+
+- **Settings → Secrets and variables → Actions → Secrets**
+  - `QIITA_TOKEN` を登録 ([Qiita アプリ設定](https://qiita.com/settings/applications) で `read_qiita` + `write_qiita` のトークンを発行)
+- **Settings → Secrets and variables → Actions → Variables** (任意)
+  - `QIITA_USERNAME`、`ZENN_USERNAME` を設定すると INDEX.md の URL がそのユーザ名で組まれる (未設定なら GitHub の owner 名)
+- **Settings → General → Visibility**: Public に変更 (GitHub Actions 無料枠のため)
+
+### 4. Zenn と連携 (deploy branch を watch)
+
+[Zenn のデプロイ設定](https://zenn.dev/dashboard/deploys) で自分の repo を連携し、対象 branch を **`deploy`** に設定。
+(`main` ではなく `deploy` です。articles は deploy branch にしか置かれません)
+
+### 5. 最初の記事を書いて push
+
+```bash
+cp drafts/template.md drafts/my-first-post.md
+# 編集して publish: true にしてから
+git add drafts/my-first-post.md
+git commit -m "add: my-first-post"
+git push
+```
+
+GitHub Actions の `sync.yml` が両プラットフォームに同時公開します。
 
 ---
 
