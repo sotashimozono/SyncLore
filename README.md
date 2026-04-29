@@ -85,13 +85,32 @@ Qiita publish が失敗したときは commit 自体が走らないため、Zenn
 - `articles/<slug>.md` → `published: false` (Zenn 側で draft 扱い)
 - `public/<slug>.md` → `private: true` (Qiita 側で限定共有 = 非公開)
 
-`drafts/<slug>.md` は **削除されません**。完全に取り下げたい場合は `articles/<slug>.md`・`public/<slug>.md`・`images/<slug>/` を手で削除してから `drafts/<slug>.md` を消してください (誤検知防止のため CI は drafts 削除を追跡しません)。
+`drafts/<slug>.md` は削除されません。再公開したい場合は `publish: true` に戻すだけ。
 
 ### 4. 記事を修正する
 
 `drafts/<slug>.md` を編集して push するだけ。`articles/`・`public/` は毎回再生成されるので、Qiita の id は維持されたまま本文だけ更新されます。免責事項は HTML コメントマーカで囲まれているため、再生成しても重複しません。
 
-### 5. 画像を使う
+### 5. 完全に削除する (delete)
+
+`drafts/<slug>.md` のフロントマターに `delete: true` を追加して push:
+
+```yaml
+---
+title: "..."
+publish: false
+delete: true   # ★ 不可逆: Qiita 側は API DELETE
+---
+```
+
+- **Qiita**: API DELETE で投稿そのものを完全削除
+- **Zenn**: `articles/<slug>.md` を repo から削除 → Zenn UI から非表示。ただし Zenn サーバ側のデータは残るため、完全消去したい場合は Zenn 管理画面でも削除してください
+- **Repo**: `articles/<slug>.md`・`public/<slug>.md`・`images/<slug>/` を CI が削除
+- `drafts/<slug>.md` は **tombstone として残ります** (`delete: true` のまま)。再公開はできない (Qiita 側が消えているので新規投稿になる) ので、完全に履歴から消したい時は手で `git rm drafts/<slug>.md` してください。
+
+⚠️ Qiita API DELETE は不可逆です。誤って `delete: true` を書かないよう注意。
+
+### 6. 画像を使う
 
 画像は `drafts/images/<slug>/` に置きます。
 
@@ -105,7 +124,7 @@ CI が `images/<slug>/` にコピーします。記事内では Zenn 形式で�
 ![説明](/images/my-new-article/figure1.png)
 ```
 
-### 6. ローカルプレビュー
+### 7. ローカルプレビュー
 
 ```bash
 npm install

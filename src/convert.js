@@ -163,6 +163,7 @@ function buildQiitaContent(data, existingFm, body) {
 let live = 0;
 let hidden = 0;
 let skipped = 0;
+let tombstone = 0;
 
 const draftFiles = fs
   .readdirSync(DRAFTS_DIR)
@@ -179,6 +180,14 @@ for (const file of draftFiles) {
   const parsed = matter(fs.readFileSync(draftPath, "utf8"));
   const data = parsed.data;
   const isPublic = data.publish === true;
+
+  // delete:true は synclore-delete.js が先に処理して articles/ public/ を消している。
+  // ここでは何もしない (regenerate すると消したものを復活させてしまう)。
+  if (data.delete === true) {
+    console.log(`  [TOMBSTONE] ${file} (delete:true; handled by synclore-delete.js)`);
+    tombstone++;
+    continue;
+  }
 
   const hasZenn = fs.existsSync(zennPath);
   const hasQiita = fs.existsSync(qiitaPath);
@@ -231,4 +240,6 @@ function warnOrphans(dir, label) {
 warnOrphans(ZENN_DIR, "articles");
 warnOrphans(QIITA_DIR, "public");
 
-console.log(`\nDone. ${live} live, ${hidden} hidden, ${skipped} skipped.`);
+console.log(
+  `\nDone. ${live} live, ${hidden} hidden, ${skipped} skipped, ${tombstone} tombstone.`,
+);

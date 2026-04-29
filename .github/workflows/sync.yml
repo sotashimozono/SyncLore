@@ -39,6 +39,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # drafts/<slug>.md に delete:true がある記事を完全削除する。
+      # qiita publish --all より前に走らせないと syncArticlesFromQiita で
+      # public/<slug>.md が復活してしまうため、convert より前に置く。
+      - name: Process deletions (Qiita API DELETE + repo cleanup)
+        env:
+          QIITA_TOKEN: ${{ secrets.QIITA_TOKEN }}
+        run: node src/synclore-delete.js
+
       # drafts/*.md を articles/, public/, images/ に冪等変換
       - name: Convert drafts -> articles/, public/, images/
         run: node src/convert.js

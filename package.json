@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "convert": "node src/convert.js",
+    "delete": "node src/synclore-delete.js",
     "preview:zenn": "npx zenn preview"
   },
   "repository": {
