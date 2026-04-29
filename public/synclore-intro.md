@@ -1,16 +1,17 @@
 ---
-title: "記事の投稿を自動化するツール SyncLore"
+title: 記事の投稿を自動化するツール SyncLore
 tags:
-  - "github"
-  - "githubactions"
-  - "qiita"
-  - "zenn"
-  - "automation"
+  - Qiita
+  - GitHub
+  - automation
+  - GitHubActions
+  - Zenn
 private: false
-updated_at: ""
+updated_at: '2026-04-29T16:06:11+09:00'
+id: 578f207e0ffb4eb7ecf5
 organization_url_name: null
 slide: false
-id: 578f207e0ffb4eb7ecf5
+ignorePublish: false
 ---
 
 ## TL;DR
