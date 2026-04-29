@@ -57,10 +57,21 @@ function readFm(p) {
   }
 }
 
-function determineStatus(draft, hasZenn, hasQiita) {
+function parsePublishAt(value) {
+  if (!value) return null;
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function determineStatus(draft, hasZenn, hasQiita, now) {
   if (draft.delete === true) return "DELETED";
   if (draft.publish === true) return "LIVE";
-  if (!hasZenn && !hasQiita) return "DRAFT";
+  const publishAt = parsePublishAt(draft.publish_at);
+  if (publishAt !== null && publishAt <= now) return "LIVE"; // 予約時刻が過ぎていれば実質公開
+  if (!hasZenn && !hasQiita) {
+    if (publishAt !== null) return "SCHEDULED"; // publish_at が未来 + outputs なし
+    return "DRAFT";
+  }
   return "HIDE";
 }
 
@@ -91,6 +102,7 @@ const draftFiles = fs
   .readdirSync(DRAFTS_DIR)
   .filter((f) => path.extname(f) === ".md" && f !== "template.md");
 
+const NOW = new Date();
 const rows = [];
 for (const file of draftFiles) {
   const slug = path.basename(file, ".md");
@@ -99,15 +111,17 @@ for (const file of draftFiles) {
   const hasZenn = fs.existsSync(path.join(ZENN_DIR, file));
   const hasQiita = fs.existsSync(path.join(QIITA_DIR, file));
 
-  const status = determineStatus(draftFm, hasZenn, hasQiita);
+  const status = determineStatus(draftFm, hasZenn, hasQiita, NOW);
   const title = draftFm.title || "(タイトル未設定)";
   const updated_at = qiitaFm.updated_at || "";
+  const publish_at = draftFm.publish_at || "";
 
   rows.push({
     slug,
     title,
     status,
     updated_at,
+    publish_at,
     qiita_id: qiitaFm.id || null,
   });
 }
@@ -130,7 +144,13 @@ lines.push("");
 lines.push("| Slug | Title | Status | Qiita | Zenn | Last update |");
 lines.push("| --- | --- | --- | --- | --- | --- |");
 for (const r of rows) {
-  const updatedCell = r.updated_at ? r.updated_at.slice(0, 10) : "—";
+  // SCHEDULED は "Last update" 列に予約時刻を表示 (まだ未公開なので updated_at は空)。
+  let updatedCell = "—";
+  if (r.status === "SCHEDULED" && r.publish_at) {
+    updatedCell = `→ ${r.publish_at.slice(0, 16).replace("T", " ")}`;
+  } else if (r.updated_at) {
+    updatedCell = r.updated_at.slice(0, 10);
+  }
   lines.push(
     `| \`${r.slug}\` | ${escapeCell(r.title)} | ${r.status} | ${qiitaLinkCell(r.qiita_id, r.status)} | ${zennLinkCell(r.slug, r.status)} | ${updatedCell} |`,
   );

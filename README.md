@@ -12,6 +12,7 @@ Markdown 記事を **Zenn と Qiita の両方に自動公開**する一元管理
 | 操作        | やり方                                         | 反映先                                       |
 | ----------- | ---------------------------------------------- | -------------------------------------------- |
 | 公開        | `drafts/<slug>.md` に `publish: true` で push  | Zenn `published:true` / Qiita `private:false` |
+| **予約公開** | `publish: false` + `publish_at: "2026-05-01T10:00:00+09:00"` で push | 時刻到来後の毎時 cron で LIVE 化 (Zenn / Qiita ともに) |
 | 修正        | `drafts/<slug>.md` を編集して push             | Zenn / Qiita 両方を update (Qiita id 維持)     |
 | 取り下げ    | `drafts/<slug>.md` を `publish: false` に戻す  | Zenn `published:false` / Qiita `private:true`  |
 | 完全削除    | `drafts/<slug>.md` に `delete: true` を付与    | Qiita API DELETE / Zenn UI から非表示         |
@@ -20,6 +21,7 @@ Markdown 記事を **Zenn と Qiita の両方に自動公開**する一元管理
 主な特徴:
 
 - **drafts/ が SSoT** — 同じ記事を Qiita と Zenn でコピペ管理する必要なし
+- **予約公開** — `publish_at` を ISO-8601 で書いておけば毎時 cron が時刻到来時に自動公開。Zenn-CLI / Qiita-CLI どちらにも無い機能を SyncLore レベルで提供
 - **Atomic** — Qiita publish が失敗したら deploy へも push しないので、Zenn と Qiita で公開状態がズレない
 - **冪等** — 同じ drafts を何度処理しても結果は同じ。Qiita 記事 id は `public/<slug>.md` に保管され、再変換しても引き継がれる
 - **生成物は別 branch (`deploy`)** — 人間の作業領域に articles/ public/ が混ざらない
@@ -98,6 +100,28 @@ publish: false           # 下書き中は false
 ```
 
 `publish: true` にして main へ push すると公開されます。
+
+### 予約公開する (scheduled)
+
+未来の日時を指定して push しておけば、その時刻を過ぎた後の cron 実行で自動公開されます。
+
+```yaml
+---
+title: "..."
+publish: false
+publish_at: "2026-05-01T10:00:00+09:00"   # ISO-8601 + TZ 必須
+---
+```
+
+仕組み:
+
+- `sync.yml` は `cron: "0 * * * *"` (毎時 00 分) でも起動
+- `convert.js` が `publish_at <= now` の draft を **effective LIVE** として処理
+- 公開後、`drafts/<slug>.md` は `publish: false` のままだが、`publish_at` が過去なので毎回 LIVE 扱い
+- 取り下げたい場合は `publish_at` を消す or 未来時刻に戻す
+
+> 粒度: 毎時 00 分の cron + GitHub Actions の遅延 (~15 分) で、最大 1 時間程度のラグ。技術記事には十分。
+> Zenn-CLI / Qiita-CLI どちらも公式には予約公開機能を持たないため、SyncLore で実装しています。
 
 ### 修正する
 
