@@ -170,7 +170,16 @@ function buildQiitaContent(data, existingFm, body) {
 let live = 0;
 let hidden = 0;
 let skipped = 0;
+let scheduled = 0;
 let tombstone = 0;
+
+const NOW = new Date();
+
+function parsePublishAt(value) {
+  if (!value) return null;
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
 
 const draftFiles = fs
   .readdirSync(DRAFTS_DIR)
@@ -186,7 +195,12 @@ for (const file of draftFiles) {
 
   const parsed = matter(fs.readFileSync(draftPath, "utf8"));
   const data = parsed.data;
-  const isPublic = data.publish === true;
+
+  // 予約公開: publish:false でも publish_at が past なら effective public 扱い。
+  // publish:true は publish_at に関係なく即時公開 (明示的な意思を尊重)。
+  const publishAt = parsePublishAt(data.publish_at);
+  const scheduleDue = publishAt !== null && publishAt <= NOW;
+  const isPublic = data.publish === true || scheduleDue;
 
   // delete:true は synclore-delete.js が先に処理して articles/ public/ を消している。
   // ここでは何もしない (regenerate すると消したものを復活させてしまう)。
@@ -199,8 +213,13 @@ for (const file of draftFiles) {
   const hasZenn = fs.existsSync(zennPath);
   const hasQiita = fs.existsSync(qiitaPath);
   if (!isPublic && !hasZenn && !hasQiita) {
-    console.log(`  [SKIP] ${file} (publish:false, no output yet)`);
-    skipped++;
+    if (publishAt !== null) {
+      console.log(`  [SCHEDULED] ${file} -> ${publishAt.toISOString()}`);
+      scheduled++;
+    } else {
+      console.log(`  [SKIP] ${file} (publish:false, no output yet)`);
+      skipped++;
+    }
     continue;
   }
 
@@ -248,5 +267,5 @@ warnOrphans(ZENN_DIR, "articles");
 warnOrphans(QIITA_DIR, "public");
 
 console.log(
-  `\nDone. ${live} live, ${hidden} hidden, ${skipped} skipped, ${tombstone} tombstone.`,
+  `\nDone. ${live} live, ${hidden} hidden, ${scheduled} scheduled, ${skipped} skipped, ${tombstone} tombstone.`,
 );

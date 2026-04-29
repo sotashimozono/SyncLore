@@ -9,6 +9,10 @@ on:
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/sync.yml"
+  schedule:
+    # 予約公開 (publish_at) を 1 時間ごとに評価する。
+    # convert.js が publish_at <= now の draft を LIVE として処理する。
+    - cron: "0 * * * *"
   workflow_dispatch:
 
 permissions:
