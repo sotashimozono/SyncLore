@@ -126,13 +126,16 @@ function buildZennContent(data, body) {
 
 function buildQiitaContent(data, existingFm, body) {
   const title = data.title || "(タイトル未設定)";
-  const tags = (Array.isArray(data.topics) ? data.topics : []).map((t) => ({
-    name: t,
-  }));
+  // qiita-cli expects tags as string[] (file-system-repo.js fromItem maps API
+  // {name, versions} -> name string). [{name}] objects break the API payload.
+  const tags = Array.isArray(data.topics) ? data.topics : [];
   const isPrivate = data.publish !== true;
 
   const updated_at = (existingFm && existingFm.updated_at) || "";
-  const orgName = (existingFm && existingFm.organization_url_name) || "";
+  const orgName =
+    existingFm && existingFm.organization_url_name
+      ? existingFm.organization_url_name
+      : null;
   const slide = !!(existingFm && existingFm.slide);
   const id = (existingFm && existingFm.id) || null;
 
@@ -142,11 +145,13 @@ function buildQiitaContent(data, existingFm, body) {
     lines.push("tags: []");
   } else {
     lines.push("tags:");
-    for (const t of tags) lines.push(`  - name: ${dq(t.name)}`);
+    for (const t of tags) lines.push(`  - ${dq(t)}`);
   }
   lines.push(`private: ${isPrivate}`);
   lines.push(`updated_at: ${dq(updated_at)}`);
-  lines.push(`organization_url_name: ${dq(orgName)}`);
+  lines.push(
+    orgName ? `organization_url_name: ${dq(orgName)}` : "organization_url_name: null",
+  );
   lines.push(`slide: ${slide}`);
   lines.push(id ? `id: ${id}` : "id: null");
   lines.push("---");
