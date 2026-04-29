@@ -1,10 +1,9 @@
 ---
 title: "記事タイトルをここに書く"
-emoji: "✨"
-type: "tech"
-topics: ["julia", "oss"]
-publish: false
-qiita_id: ""
+emoji: "✨"              # Zenn 専用 (省略時は 📝)
+type: "tech"             # tech | idea (Zenn 専用)
+topics: ["julia", "oss"] # タグ。Zenn は最大 5 個まで
+publish: false           # true で公開 / false で非公開 (既存公開記事は draft / private へ書き戻し)
 ---
 
 ## はじめに

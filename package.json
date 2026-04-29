@@ -5,8 +5,6 @@
   "main": "index.js",
   "scripts": {
     "convert": "node src/convert.js",
-    "deploy:qiita": "npx qiita publish --all",
-    "deploy:all": "npm run convert && npm run deploy:qiita",
     "preview:zenn": "npx zenn preview"
   },
   "repository": {
