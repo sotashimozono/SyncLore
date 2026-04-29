@@ -84,7 +84,10 @@ jobs:
           ln -sfn "${{ github.workspace }}/package-lock.json" "${{ env.DEPLOY_DIR }}/package-lock.json"
           cd "${{ env.DEPLOY_DIR }}"
           echo "QIITA_TOKEN=${QIITA_TOKEN}" > .env
-          npx qiita publish --all
+          # --force で qiita-cli の isOlderThanRemote チェックを skip。
+          # SyncLore は drafts/ が SSoT なので Qiita 側の手編集は想定外、
+          # updated_at の比較で publish が止まると詰まるため強制上書きする。
+          npx qiita publish --all --force
           rm -f .env
           rm -f node_modules package.json package-lock.json
 
