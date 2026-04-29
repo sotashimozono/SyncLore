@@ -5,3 +5,4 @@
 | Slug | Title | Status | Qiita | Zenn | Last update |
 | --- | --- | --- | --- | --- | --- |
 | `synclore-intro` | 記事の投稿を自動化するツール SyncLore | LIVE | [link](https://qiita.com/sotashimozono/items/578f207e0ffb4eb7ecf5) | [link](https://zenn.dev/sotashimozono/articles/synclore-intro) | 2026-04-29 |
+| `synclore-scheduled-publish` | 投稿自動化ツール SyncLore を使った記事の予約投稿 | SCHEDULED | — | — | → 2026-04-30 08:30 |
