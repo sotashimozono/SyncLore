@@ -108,9 +108,14 @@ jobs:
             - Qiita publish 済み (id は `public/<slug>.md` に保管)
             - Zenn は merge 後に GitHub 連携で取り込みます
 
-      - name: Enable auto-merge
+      # deploy branch に protection が無いと PR は "clean" 状態で開くので
+      # --auto はエラーになる。素直に即時 merge を試し、もしダメなら --auto を使う。
+      - name: Merge CI sync PR
         if: steps.cpr.outputs.pull-request-number
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ steps.cpr.outputs.pull-request-number }}
+          REPO: ${{ github.repository }}
         run: |
-          gh pr merge ${{ steps.cpr.outputs.pull-request-number }} --auto --merge --repo ${{ github.repository }}
+          gh pr merge "$PR_NUMBER" --merge --repo "$REPO" \
+            || gh pr merge "$PR_NUMBER" --auto --merge --repo "$REPO"
