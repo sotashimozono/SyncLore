@@ -13,7 +13,6 @@ on:
 
 permissions:
   contents: write
-  pull-requests: write
 
 # main / deploy の両方への push 操作が並走しないように直列化
 concurrency:
@@ -89,33 +88,18 @@ jobs:
           rm -f .env
           rm -f node_modules package.json package-lock.json
 
-      # deploy branch は branch protection で直 push 不可なので PR + auto-merge。
-      # path: .deploy で peter-evans/create-pull-request を deploy worktree に
-      # 限定し、main 側の変更は commit させない。
-      - name: Create PR on deploy branch
-        id: cpr
-        uses: peter-evans/create-pull-request@v8
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          path: ${{ env.DEPLOY_DIR }}
-          base: deploy
-          commit-message: "[CI] sync articles from drafts"
-          branch: ci/sync-articles
-          delete-branch: true
-          title: "[CI] Sync articles from drafts"
-          body: |
-            `drafts/` の変更を Zenn・Qiita 形式に変換しました。
-            - Qiita publish 済み (id は `public/<slug>.md` に保管)
-            - Zenn は merge 後に GitHub 連携で取り込みます
-
-      # deploy branch に protection が無いと PR は "clean" 状態で開くので
-      # --auto はエラーになる。素直に即時 merge を試し、もしダメなら --auto を使う。
-      - name: Merge CI sync PR
-        if: steps.cpr.outputs.pull-request-number
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ steps.cpr.outputs.pull-request-number }}
-          REPO: ${{ github.repository }}
+      # deploy は CI 専用の dump branch (gh-pages 同等)。PR を経由せず直 push。
+      # 直 push にしている理由: PR 経由だと毎回 "Compare & pull request" 通知が
+      # 出てうるさいため。deploy branch には branch protection を付けない前提。
+      - name: Push generated outputs to deploy
+        working-directory: ${{ env.DEPLOY_DIR }}
         run: |
-          gh pr merge "$PR_NUMBER" --merge --repo "$REPO" \
-            || gh pr merge "$PR_NUMBER" --auto --merge --repo "$REPO"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No generated changes."
+          else
+            git commit -m "[CI] sync articles from drafts"
+            git push origin deploy
+          fi
