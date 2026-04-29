@@ -7,18 +7,18 @@ tags:
   - GitHubActions
   - Zenn
 private: false
-updated_at: '2026-04-29T16:44:11+09:00'
+updated_at: '2026-04-29T16:53:32+09:00'
 id: 578f207e0ffb4eb7ecf5
 organization_url_name: null
 slide: false
 ignorePublish: false
 ---
 
-## TL;DR
+## What's SyncLore?
 
 [SyncLore](https://github.com/sotashimozono/SyncLore) は **GitHub リポジトリを Single Source of Truth** として、`drafts/` に書いた Markdown を **Zenn と Qiita の両方に自動公開** する一元管理リポジトリです。
 
-`drafts/foo.md` の `publish: true` で main にプッシュするだけで、両プラットフォームに同じ内容の記事が反映されます。
+作成した記事 `drafts/foo.md` に `publish: true` というプロパティを割り当て、 `main` branch に push するだけで、両プラットフォームに同じ内容の記事が反映されます。
 
 ## 動機
 
@@ -28,6 +28,8 @@ ignorePublish: false
 - 画像のパス指定が両者で違う
 - フロントマターの仕様が違う (`emoji`, `type` は Zenn のみ、`tags` は Qiita で形式が異なる)
 - 公開・非公開フラグの名前が違う (`published` vs `private`)
+
+...それと単に両方に記事を同時に公開するのがめんどくさい。
 
 SyncLore は **「Markdown は `drafts/` に 1 つだけ書く」** で済ませるためのツールです。
 
@@ -80,7 +82,7 @@ publish: false
 ...
 ```
 
-### 2. 公開する
+### 2. 公開
 
 `publish: true` に変更して main へプッシュ。
 
@@ -92,11 +94,11 @@ git push
 
 GitHub Actions が走り、Zenn と Qiita の両方に同じ内容が公開されます。
 
-### 3. 修正する
+### 3. 編集・修正
 
 `drafts/my-article.md` を編集してまた push するだけ。記事 ID は `public/<slug>.md` の `id` フィールドに保管されているため、Qiita 側でも同じ記事が更新されます。免責事項は HTML コメントマーカで囲まれているので、再変換しても重複しません。
 
-### 4. 取り下げる
+### 4. 記事の取り下げ
 
 `publish: false` に戻して push すると:
 
