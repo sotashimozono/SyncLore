@@ -43,6 +43,15 @@ const ZENN_DIR = path.join(DEPLOY_ROOT, "articles");
 const QIITA_DIR = path.join(DEPLOY_ROOT, "public");
 const ZENN_IMG_DIR = path.join(DEPLOY_ROOT, "images");
 
+// ─── Wiki-link username 解決 ──────────────────────────────────────────────────
+function ghOwner() {
+  const v = process.env.GITHUB_REPOSITORY;
+  return v ? v.split("/")[0] || null : null;
+}
+const QIITA_USER = process.env.QIITA_USERNAME || ghOwner();
+const ZENN_USER = process.env.ZENN_USERNAME || ghOwner();
+const REPO_FULL = process.env.GITHUB_REPOSITORY || null;
+
 // ─── 免責事項 (マーカで囲んで冪等付与) ────────────────────────────────────────
 const DISCLAIMER_START = "<!-- SYNCLORE_DISCLAIMER_START -->";
 const DISCLAIMER_END = "<!-- SYNCLORE_DISCLAIMER_END -->";
@@ -80,6 +89,83 @@ function dq(value) {
     .replace(/\n/g, "\\n")
     .replace(/\r/g, "\\r")
     .replace(/\t/g, "\\t")}"`;
+}
+
+// ─── Wiki-link 解決 ───────────────────────────────────────────────────────────
+// drafts/<slug>.md の本文に書ける [[other-slug]] / [[other-slug|表示]] を、
+// プラットフォーム別の URL に変換する。
+//   Zenn:  https://zenn.dev/<user>/articles/<slug>
+//   Qiita: https://qiita.com/<user>/items/<id>  (id は public/<slug>.md から)
+//   Qiita で id 未割当 → GitHub の drafts/<slug>.md にフォールバック
+// コードブロック / inline code 内は無変換。
+const WIKI_LINK_RE = /\[\[([^\]\|\n]+)(?:\|([^\]\n]+))?\]\]/g;
+const CODE_SPLIT_RE = /(```[\s\S]*?```|`[^`\n]*`)/;
+
+function buildSlugMap() {
+  const map = new Map();
+  if (!fs.existsSync(DRAFTS_DIR)) return map;
+  for (const f of fs.readdirSync(DRAFTS_DIR)) {
+    if (path.extname(f) !== ".md" || f === "template.md") continue;
+    const slug = path.basename(f, ".md");
+    let title = null;
+    try {
+      const draftFm = matter(fs.readFileSync(path.join(DRAFTS_DIR, f), "utf8")).data || {};
+      title = draftFm.title || null;
+    } catch {}
+    let qiitaId = null;
+    const qPath = path.join(QIITA_DIR, f);
+    if (fs.existsSync(qPath)) {
+      try {
+        const qFm = matter(fs.readFileSync(qPath, "utf8")).data || {};
+        qiitaId = qFm.id || null;
+      } catch {}
+    }
+    map.set(slug, { title, qiitaId });
+  }
+  return map;
+}
+
+function transformWikiLinks(body, platform, slugMap, currentSlug) {
+  return body
+    .split(CODE_SPLIT_RE)
+    .map((part, i) => {
+      // i 奇数 = code (split が match を含めるため)。code はそのまま
+      if (i % 2 === 1) return part;
+      return part.replace(WIKI_LINK_RE, (match, target, display) => {
+        const slug = target.replace(/\.md$/, "").trim();
+        if (slug === currentSlug) {
+          console.warn(`  [WARN] self-reference wiki link: [[${target}]] in ${currentSlug}.md (left as-is)`);
+          return match;
+        }
+        const entry = slugMap.get(slug);
+        if (!entry) {
+          console.warn(`  [WARN] unknown wiki link target: [[${target}]] in ${currentSlug}.md (left as-is)`);
+          return match;
+        }
+        const text = (display || entry.title || slug).trim().replace(/[\[\]]/g, "");
+        if (platform === "zenn") {
+          if (!ZENN_USER) {
+            console.warn(`  [WARN] ZENN_USERNAME / GITHUB_REPOSITORY not set; [[${target}]] left as-is`);
+            return match;
+          }
+          return `[${text}](https://zenn.dev/${ZENN_USER}/articles/${slug})`;
+        }
+        if (platform === "qiita") {
+          if (entry.qiitaId && QIITA_USER) {
+            return `[${text}](https://qiita.com/${QIITA_USER}/items/${entry.qiitaId})`;
+          }
+          // Fallback (b): GitHub の drafts/<slug>.md
+          if (REPO_FULL) {
+            console.warn(`  [WARN] [[${target}]] has no Qiita id yet; falling back to GitHub link in Qiita output`);
+            return `[${text}](https://github.com/${REPO_FULL}/blob/main/drafts/${slug}.md)`;
+          }
+          console.warn(`  [WARN] [[${target}]] has no Qiita id and no GITHUB_REPOSITORY env; left as-is`);
+          return match;
+        }
+        return match;
+      });
+    })
+    .join("");
 }
 
 function readExistingFrontmatter(filePath) {
@@ -181,6 +267,9 @@ function parsePublishAt(value) {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
+// Wiki-link 解決用 slug マップを最初に構築 (drafts/*.md と public/*.md から)
+const slugMap = buildSlugMap();
+
 const draftFiles = fs
   .readdirSync(DRAFTS_DIR)
   .filter((f) => path.extname(f) === ".md");
@@ -223,14 +312,20 @@ for (const file of draftFiles) {
     continue;
   }
 
-  const body = appendDisclaimer(parsed.content);
+  // Wiki-link はプラットフォームごとに違う URL に展開されるので、body を 2 つ作る
+  const zennBody = appendDisclaimer(
+    transformWikiLinks(parsed.content, "zenn", slugMap, slug),
+  );
+  const qiitaBody = appendDisclaimer(
+    transformWikiLinks(parsed.content, "qiita", slugMap, slug),
+  );
 
-  fs.writeFileSync(zennPath, buildZennContent(data, body), "utf8");
+  fs.writeFileSync(zennPath, buildZennContent(data, zennBody), "utf8");
 
   const existingQiitaFm = readExistingFrontmatter(qiitaPath);
   fs.writeFileSync(
     qiitaPath,
-    buildQiitaContent(data, existingQiitaFm, body),
+    buildQiitaContent(data, existingQiitaFm, qiitaBody),
     "utf8",
   );
 
