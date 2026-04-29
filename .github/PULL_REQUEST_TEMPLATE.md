@@ -1,23 +1,22 @@
-## 概要
-(もしあれば)
-- 関連するIssue: #
+## 種類 (該当に ✓ / 1 つ選択推奨)
 
-## 変更の種類
-- [ ] ✨ 新機能 (Feature)
-- [ ] 🐛 バグ修正 (Bug Fix)
-- [ ] ⚡ パフォーマンス改善 (Performance)
-- [ ] 📖 ドキュメント整備 (Documentation)
-- [ ] 🔧 その他 (Refactoring, CI/CD, etc...)
+- [ ] 📝 新規記事 (`drafts/<slug>.md` 追加 + `publish: true`)
+- [ ] ✏️ 既存記事の修正
+- [ ] 🚪 取り下げ (`publish: false`)
+- [ ] 🗑 完全削除 (`delete: true`、Qiita 側は API DELETE で不可逆)
+- [ ] 🔧 SyncLore 自体の改修 (sync.yml / convert.js / template など)
+
+## slug
+
+<!-- 例: my-new-article -->
 
 ## 変更内容
-- 
+
 - 
 
-## 使用例
-```julia
-# 実装した機能の使用例
+## 確認事項
 
-```
-## check list
-- [ ] test駆動をしたか
-- [ ] Project.tomlのバージョンを上げたか
+- [ ] (新規 / 修正なら) `topics` は 5 個以下
+- [ ] (画像があれば) `drafts/images/<slug>/` に配置済
+- [ ] (新規 / 修正なら) ローカル preview で表示確認した
+- [ ] `delete: true` を付ける場合、本当に削除して良いことを再確認した

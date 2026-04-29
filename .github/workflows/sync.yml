@@ -68,6 +68,16 @@ jobs:
           SYNCLORE_DEPLOY_ROOT: ${{ github.workspace }}/${{ env.DEPLOY_DIR }}
         run: node src/convert.js
 
+      # 公開記事の一覧を .deploy/INDEX.md に出力 (執筆履歴ページ)。
+      # GITHUB_REPOSITORY の owner から Qiita / Zenn の URL を組む。
+      # QIITA_USERNAME / ZENN_USERNAME を repo variables で設定すれば上書きできる。
+      - name: Build INDEX.md (article history)
+        env:
+          SYNCLORE_DEPLOY_ROOT: ${{ github.workspace }}/${{ env.DEPLOY_DIR }}
+          QIITA_USERNAME: ${{ vars.QIITA_USERNAME }}
+          ZENN_USERNAME: ${{ vars.ZENN_USERNAME }}
+        run: node src/build-index.js
+
       # qiita-cli は cwd の public/ を読むので .deploy/ から実行する。
       # node_modules は main 側に npm ci 済みなので symlink で共有。
       # package.json も qiita-cli が package 名解決に参照するので link しておく。

@@ -6,6 +6,7 @@
   "scripts": {
     "convert": "node src/convert.js",
     "delete": "node src/synclore-delete.js",
+    "index": "node src/build-index.js",
     "preview:zenn": "npx zenn preview"
   },
   "repository": {

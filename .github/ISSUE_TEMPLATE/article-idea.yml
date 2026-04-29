@@ -1,0 +1,64 @@
+name: 💡 Article Idea
+description: 書きたい記事のネタを記録する
+title: "[Article]: "
+labels: ["article-idea"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        書きたい記事のアイデアを Issue として残しておくテンプレートです。
+        着手したら Close しつつ `drafts/<slug>.md` を作って書き始めてください。
+
+  - type: input
+    id: slug
+    attributes:
+      label: 想定 slug
+      description: ファイル名 (英小文字・ハイフン)。たとえば `rust-lifetimes-intro`。後で変えても OK
+      placeholder: my-new-article
+    validations:
+      required: false
+
+  - type: textarea
+    id: theme
+    attributes:
+      label: テーマ・タイトル案
+      description: 何について書く?
+      placeholder: 一言でテーマを書いてください
+    validations:
+      required: true
+
+  - type: textarea
+    id: motivation
+    attributes:
+      label: 動機・背景
+      description: なぜ書きたい? 想定読者は?
+    validations:
+      required: false
+
+  - type: input
+    id: topics
+    attributes:
+      label: topics 候補 (Zenn / Qiita タグ、最大 5 個)
+      description: カンマ区切り
+      placeholder: rust, lifetimes, beginner
+    validations:
+      required: false
+
+  - type: dropdown
+    id: type
+    attributes:
+      label: タイプ
+      description: Zenn の type 相当 (Qiita では無視される)
+      options:
+        - tech
+        - idea
+    validations:
+      required: false
+
+  - type: textarea
+    id: references
+    attributes:
+      label: 参考リンク・メモ
+      description: 関連するドキュメント・記事・公式リファレンスなど
+    validations:
+      required: false
