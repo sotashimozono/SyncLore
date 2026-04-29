@@ -21,6 +21,7 @@ Markdown 記事を **Zenn と Qiita の両方に自動公開**する一元管理
 - **Atomic** — Qiita publish が失敗したら deploy へも push しないので、Zenn と Qiita で公開状態がズレない
 - **冪等** — 同じ drafts を何度処理しても結果は同じ。Qiita 記事 id は `public/<slug>.md` に保管され、再変換しても引き継がれる
 - **生成物は別 branch (`deploy`)** — 人間の作業領域に articles/ public/ が混ざらない
+- **執筆履歴を残す** — `deploy` branch の [`INDEX.md`](../../blob/deploy/INDEX.md) に公開記事一覧が auto-update され、GitHub Releases (release-drafter) には PR ベースで「新規 / 修正 / 取り下げ / 削除」のログが蓄積される
 
 ---
 
@@ -118,6 +119,22 @@ cd .deploy && npm run preview:zenn                    # Zenn プレビュー
 ```
 
 `SYNCLORE_DEPLOY_ROOT` を未指定にすると main の working tree に生成されますが `.gitignore` で commit できないので、ローカル確認用です。
+
+### Branch 命名規約 (release-drafter autolabeler 用)
+
+PR を作るときの branch 名を以下に揃えると、release-drafter が自動でラベルを付け、リリースノートのカテゴリに振り分けてくれます。
+
+| Branch prefix | ラベル | Releases のカテゴリ |
+| --- | --- | --- |
+| `add/<slug>` | `article-new` | 📝 New articles |
+| `edit/<slug>` | `article-update` | ✏️ Updated articles |
+| `unpub/<slug>` | `article-unpublish` | 🚪 Unpublished |
+| `delete/<slug>` | `article-delete` | 🗑 Deleted articles |
+| `chore/...` / `fix/...` / `feat/...` / `refactor/...` / `hotfix/...` | (それぞれ) | 🔧 Maintenance |
+
+PR タイトルの prefix (`add: ...`, `edit: ...` 等) でも同じ判定が走ります。
+
+main へ直 push する場合はラベルが付かないので、Releases に履歴として残したいときは PR 経由を推奨。
 
 ---
 

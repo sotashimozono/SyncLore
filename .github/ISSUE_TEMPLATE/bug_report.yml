@@ -1,67 +1,59 @@
 name: 🐛 Bug Report
-description: バグや問題を報告する
+description: SyncLore 自体の不具合を報告する
 title: "[Bug]: "
 labels: ["bug"]
 body:
   - type: markdown
     attributes:
       value: |
-        バグ報告ありがとうございます。以下の情報を提供してください。
+        SyncLore (sync.yml / convert.js / synclore-delete.js / その他) の不具合報告です。
+        記事コンテンツの間違いではなく、**ツールが期待通り動かない場合**に使ってください。
 
   - type: textarea
     id: description
     attributes:
-      label: バグの内容
-      description: どのような問題が発生していますか？
-      placeholder: バグの内容を詳しく説明してください
+      label: 何が起きたか
+      description: 期待した動作と、実際に起きたことを書いてください
+      placeholder: |
+        - 期待: drafts/foo.md を `publish: true` で push したら Zenn に出る
+        - 実際: Zenn に出ない / sync.yml が失敗する / etc.
     validations:
       required: true
 
   - type: textarea
     id: reproduction
     attributes:
-      label: 発生時のコード
-      description: バグを再現するためのコード例を提供してください
+      label: 再現手順
+      description: どんな drafts と操作で再現するか
       placeholder: |
-        ```julia
-        # ここにコードを貼り付けてください
-        ```
-      render: julia
+        1. drafts/foo.md を作って publish: true にする
+        2. main に push する
+        3. ...
     validations:
       required: true
 
-  - type: textarea
-    id: expected
+  - type: input
+    id: workflow_run
     attributes:
-      label: 期待される動作
-      description: 本来どのように動作すべきですか？
+      label: 失敗した workflow run の URL
+      description: 該当するなら GitHub Actions の run リンク
+      placeholder: https://github.com/.../actions/runs/...
     validations:
       required: false
 
   - type: textarea
-    id: actual
+    id: logs
     attributes:
-      label: 実際の動作
-      description: 実際にはどのような動作をしていますか？
-    validations: 
-      required: false
-
-  - type: textarea
-    id: environment
-    attributes:
-      label: 環境情報
-      description: Julia のバージョンなど
-      placeholder: |
-        - Julia version: 
-        - LSystems. jl version: 
-        - OS: 
+      label: ログ抜粋
+      description: 関係する箇所だけで OK (機密が混ざらないよう注意)
+      render: text
     validations:
       required: false
 
   - type: textarea
     id: additional
-    attributes: 
-      label: 追加情報
-      description: その他、参考になる情報があれば記載してください
-    validations: 
+    attributes:
+      label: 補足
+      description: スクリーンショット、関連 PR、考えられる原因など
+    validations:
       required: false
