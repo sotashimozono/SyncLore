@@ -32,11 +32,17 @@ const fs = require("fs");
 const path = require("path");
 const matter = require("gray-matter");
 
-const ROOT = path.resolve(__dirname, "..");
-const DRAFTS_DIR = path.join(ROOT, "drafts");
-const ZENN_DIR = path.join(ROOT, "articles");
-const QIITA_DIR = path.join(ROOT, "public");
-const ZENN_IMG_DIR = path.join(ROOT, "images");
+// SOURCE_ROOT: drafts/ がある場所 (main branch の checkout)。
+// DEPLOY_ROOT: articles/ public/ images/ がある場所。
+//   SYNCLORE_DEPLOY_ROOT 未指定なら SOURCE_ROOT と同じ (ローカル fallback)。
+const SOURCE_ROOT = path.resolve(__dirname, "..");
+const DEPLOY_ROOT = process.env.SYNCLORE_DEPLOY_ROOT
+  ? path.resolve(process.env.SYNCLORE_DEPLOY_ROOT)
+  : SOURCE_ROOT;
+const DRAFTS_DIR = path.join(SOURCE_ROOT, "drafts");
+const ZENN_DIR = path.join(DEPLOY_ROOT, "articles");
+const QIITA_DIR = path.join(DEPLOY_ROOT, "public");
+const ZENN_IMG_DIR = path.join(DEPLOY_ROOT, "images");
 
 const QIITA_API_ROOT = "https://qiita.com/api/v2/items";
 

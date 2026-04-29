@@ -1,3 +1,9 @@
 node_modules/
 .env
-public/.remote/
+
+# Generated artifacts live on the deploy branch; never commit them on main.
+articles/
+public/
+images/
+# Local worktree of the deploy branch (created by `git worktree add .deploy deploy`).
+.deploy/
