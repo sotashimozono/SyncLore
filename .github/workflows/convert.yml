@@ -32,7 +32,7 @@ jobs:
       # 変換結果を PR として作成
       - name: Create Pull Request for converted articles
         id: cpr
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: "[CI] convert: sync articles from drafts"
