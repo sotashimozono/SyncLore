@@ -5,7 +5,7 @@ on:
     branches: [main]
     paths:
       - "drafts/**"
-      - "src/convert.js"
+      - "src/**"
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/sync.yml"
@@ -15,7 +15,7 @@ permissions:
   contents: write
   pull-requests: write
 
-# 同時実行を直列化して PR と Qiita publish のレースを防ぐ
+# main / deploy の両方への push 操作が並走しないように直列化
 concurrency:
   group: synclore-sync-${{ github.ref }}
   cancel-in-progress: false
@@ -23,11 +23,26 @@ concurrency:
 jobs:
   sync:
     runs-on: ubuntu-latest
+    env:
+      DEPLOY_DIR: .deploy
     steps:
-      - name: Checkout
+      # main: ソース (drafts/, src/, sync.yml) の checkout
+      - name: Checkout main (sources)
         uses: actions/checkout@v6
         with:
+          ref: main
           token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 1
+
+      # deploy: 生成物 (articles/, public/, images/) の checkout
+      # 別ディレクトリ .deploy/ にチェックアウトすることで main の working tree
+      # に articles/ などが生えないようにする (Option A の核心)。
+      - name: Checkout deploy (artifacts)
+        uses: actions/checkout@v6
+        with:
+          ref: deploy
+          token: ${{ secrets.GITHUB_TOKEN }}
+          path: ${{ env.DEPLOY_DIR }}
           fetch-depth: 1
 
       - name: Setup Node.js
@@ -41,20 +56,23 @@ jobs:
 
       # drafts/<slug>.md に delete:true がある記事を完全削除する。
       # qiita publish --all より前に走らせないと syncArticlesFromQiita で
-      # public/<slug>.md が復活してしまうため、convert より前に置く。
+      # public/<slug>.md が復活してしまう。
       - name: Process deletions (Qiita API DELETE + repo cleanup)
         env:
           QIITA_TOKEN: ${{ secrets.QIITA_TOKEN }}
+          SYNCLORE_DEPLOY_ROOT: ${{ github.workspace }}/${{ env.DEPLOY_DIR }}
         run: node src/synclore-delete.js
 
-      # drafts/*.md を articles/, public/, images/ に冪等変換
-      - name: Convert drafts -> articles/, public/, images/
+      # drafts/*.md を .deploy/{articles,public,images}/ に冪等変換
+      - name: Convert drafts -> .deploy/{articles,public,images}/
+        env:
+          SYNCLORE_DEPLOY_ROOT: ${{ github.workspace }}/${{ env.DEPLOY_DIR }}
         run: node src/convert.js
 
-      # Atomic 設計: Qiita publish が成功したときだけ生成物を PR にする。
-      # qiita-cli は新規記事の id を public/<slug>.md に書き戻すため、
-      # 必ず convert -> qiita publish -> PR の順で走らせる。
-      - name: Publish to Qiita (writes back ids to public/)
+      # qiita-cli は cwd の public/ を読むので .deploy/ から実行する。
+      # node_modules は main 側に npm ci 済みなので symlink で共有。
+      # package.json も qiita-cli が package 名解決に参照するので link しておく。
+      - name: Publish to Qiita (writes back ids to .deploy/public/)
         env:
           QIITA_TOKEN: ${{ secrets.QIITA_TOKEN }}
         run: |
@@ -62,17 +80,25 @@ jobs:
             echo "::error::QIITA_TOKEN secret is not set."
             exit 1
           fi
+          ln -sfn "${{ github.workspace }}/node_modules" "${{ env.DEPLOY_DIR }}/node_modules"
+          ln -sfn "${{ github.workspace }}/package.json" "${{ env.DEPLOY_DIR }}/package.json"
+          ln -sfn "${{ github.workspace }}/package-lock.json" "${{ env.DEPLOY_DIR }}/package-lock.json"
+          cd "${{ env.DEPLOY_DIR }}"
           echo "QIITA_TOKEN=${QIITA_TOKEN}" > .env
           npx qiita publish --all
           rm -f .env
+          rm -f node_modules package.json package-lock.json
 
-      # main は branch protection で直 push 不可。PR を作って auto-merge する。
-      # Zenn は merge 後の main commit を GitHub 連携で webhook 検知して反映する。
-      - name: Create PR for generated outputs
+      # deploy branch は branch protection で直 push 不可なので PR + auto-merge。
+      # path: .deploy で peter-evans/create-pull-request を deploy worktree に
+      # 限定し、main 側の変更は commit させない。
+      - name: Create PR on deploy branch
         id: cpr
         uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          path: ${{ env.DEPLOY_DIR }}
+          base: deploy
           commit-message: "[CI] sync articles from drafts"
           branch: ci/sync-articles
           delete-branch: true
@@ -87,4 +113,4 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh pr merge ${{ steps.cpr.outputs.pull-request-number }} --auto --merge
+          gh pr merge ${{ steps.cpr.outputs.pull-request-number }} --auto --merge --repo ${{ github.repository }}

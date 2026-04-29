@@ -8,28 +8,42 @@ GitHub を Single Source of Truth として、`drafts/` に書いた Markdown �
 
 ---
 
-## ディレクトリ構成
+## ブランチ構成
 
-```
-SyncLore/
-├── drafts/                ← ★ 原稿を書く場所 (SSoT、人間が編集)
-│   ├── template.md
-│   ├── my-article.md
-│   └── images/
-│       └── my-article/    ← 記事ごとの画像
-│           └── figure1.png
-├── articles/              ← 生成物 (Zenn-CLI 規約)
-│   └── my-article.md
-├── public/                ← 生成物 (Qiita-CLI 規約・Qiita id を保管)
-│   └── my-article.md
-├── images/                ← 生成物 (Zenn が参照する画像コピー)
-│   └── my-article/
-│       └── figure1.png
-└── src/
-    └── convert.js         ← drafts/ → articles/, public/, images/ を冪等変換
+```mermaid
+flowchart LR
+    subgraph main["main branch (人間が編集)"]
+        D[drafts/]
+        S[src/]
+        WF[.github/workflows/sync.yml]
+    end
+    subgraph deploy["deploy branch (CI 専用、orphan)"]
+        A[articles/]
+        P[public/]
+        I[images/]
+    end
+    main -->|sync.yml が両方 checkout| CI[CI runner]
+    CI -->|生成物を deploy にだけ push| deploy
+    deploy -->|Zenn webhook| Zenn[Zenn]
+    CI -->|qiita publish| Qiita[Qiita]
 ```
 
-> `articles/`・`public/`・`images/` は CI が自動生成するので **手で編集しない**。
+- **main**: 人間が触る場所。`drafts/`・`src/`・`.github/`・`README.md`・`package.json` だけが置かれる。
+- **deploy**: CI が生成した `articles/`・`public/`・`images/` だけが置かれる orphan branch。Zenn の GitHub 連携はこの branch を watch する。手で触らない (`.gitignore` で main 側の working tree から除外済み)。
+
+```text
+main:                              deploy:
+  drafts/                            articles/
+    template.md                        my-article.md
+    my-article.md                    public/
+    images/my-article/                 my-article.md   (Qiita id 保管)
+      figure1.png                    images/
+  src/                                 my-article/
+    convert.js                           figure1.png
+    synclore-delete.js
+  .github/workflows/sync.yml
+```
+
 > Qiita の記事 id は `public/<slug>.md` の `id` フィールドに保管され、qiita-cli が
 > 公開時に自動で書き戻します。
 
@@ -69,14 +83,15 @@ git push
 
 GitHub Actions (`sync.yml`) が以下を **1 本の workflow で atomic に** 実行します:
 
-| ステップ      | 内容                                                                                                |
-| ------------- | --------------------------------------------------------------------------------------------------- |
-| convert       | `drafts/*.md` を `articles/`・`public/`・`images/` に冪等再生成                                     |
-| qiita publish | `npx qiita publish --all` で Qiita 投稿 / 更新 (新規時は `public/<slug>.md` に id を書き戻し)        |
-| commit & push | `articles/`・`public/`・`images/` の変更を main に push                                              |
-| Zenn          | GitHub 連携 webhook が main の commit を検知して反映                                                |
+| ステップ      | 内容                                                                                                          |
+| ------------- | ------------------------------------------------------------------------------------------------------------- |
+| checkout      | main (sources) と deploy (artifacts) を `.deploy/` にデュアル checkout                                         |
+| convert       | `drafts/*.md` を `.deploy/articles/`・`.deploy/public/`・`.deploy/images/` に冪等再生成                       |
+| qiita publish | `.deploy/` で `npx qiita publish --all` 実行 / 新規時は `public/<slug>.md` に id を書き戻し                    |
+| PR + merge    | deploy branch に CI sync PR を作って auto-merge                                                                |
+| Zenn          | GitHub 連携 webhook が deploy の commit を検知して反映                                                         |
 
-Qiita publish が失敗したときは commit 自体が走らないため、Zenn 側だけ進む / Qiita id がズレるといった半端な状態になりません。失敗時は workflow を re-run。
+Qiita publish が失敗したときは PR 自体が作られないため、Zenn 側だけ進む / Qiita id がズレるといった半端な状態になりません。失敗時は workflow を re-run。
 
 ### 3. 非公開に戻す (unpublish)
 
@@ -126,11 +141,22 @@ CI が `images/<slug>/` にコピーします。記事内では Zenn 形式で�
 
 ### 7. ローカルプレビュー
 
+deploy branch を `.deploy/` worktree として展開してから convert すると、main の working tree を汚さずに生成物を確認できます。
+
 ```bash
 npm install
-npm run convert         # drafts/ → articles/, public/ を手動変換
-npm run preview:zenn    # Zenn のプレビューサーバー
+
+# deploy branch を .deploy/ に worktree として展開 (初回のみ)
+git worktree add .deploy deploy
+
+# drafts/ → .deploy/articles/, .deploy/public/, .deploy/images/ を生成
+SYNCLORE_DEPLOY_ROOT=$(pwd)/.deploy npm run convert
+
+# Zenn のプレビューサーバー (.deploy/ から起動するのが楽)
+cd .deploy && npm run preview:zenn
 ```
+
+`SYNCLORE_DEPLOY_ROOT` を指定しない場合は main の working tree (`articles/` 等) に出力されますが、`.gitignore` で除外されているので commit できません — ローカル確認用と割り切ります。
 
 ---
 
@@ -144,8 +170,9 @@ npm run preview:zenn    # Zenn のプレビューサーバー
 2. **GitHub Secrets に `QIITA_TOKEN` を登録**
    Settings → Secrets and variables → Actions → New repository secret
 
-3. **Zenn と GitHub リポジトリを連携**
-   [Zenn のデプロイ設定](https://zenn.dev/dashboard/deploys) でこのリポジトリを連携
+3. **Zenn と GitHub リポジトリを連携 (deploy branch を watch)**
+   [Zenn のデプロイ設定](https://zenn.dev/dashboard/deploys) でこのリポジトリを連携し、対象 branch を **`deploy`** にする
+   (default の `main` ではなく `deploy`。articles は deploy にしか無いので注意)
 
 4. **リポジトリを Public に設定** (GitHub Actions 無料枠のため)
 

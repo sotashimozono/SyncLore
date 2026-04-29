@@ -29,12 +29,19 @@ const path = require("path");
 const matter = require("gray-matter");
 
 // ─── パス定義 ────────────────────────────────────────────────────────────────
-const ROOT = path.resolve(__dirname, "..");
-const DRAFTS_DIR = path.join(ROOT, "drafts");
-const ZENN_DIR = path.join(ROOT, "articles");
-const QIITA_DIR = path.join(ROOT, "public");
+// SOURCE_ROOT: drafts/ と src/ がある場所 (= main branch の checkout)。
+// DEPLOY_ROOT: articles/ public/ images/ がある場所。
+//   SYNCLORE_DEPLOY_ROOT 未指定なら SOURCE_ROOT と同じ (ローカル開発用 fallback)。
+//   CI では deploy branch の worktree (例: $GITHUB_WORKSPACE/.deploy) を指す。
+const SOURCE_ROOT = path.resolve(__dirname, "..");
+const DEPLOY_ROOT = process.env.SYNCLORE_DEPLOY_ROOT
+  ? path.resolve(process.env.SYNCLORE_DEPLOY_ROOT)
+  : SOURCE_ROOT;
+const DRAFTS_DIR = path.join(SOURCE_ROOT, "drafts");
 const DRAFT_IMG_DIR = path.join(DRAFTS_DIR, "images");
-const ZENN_IMG_DIR = path.join(ROOT, "images");
+const ZENN_DIR = path.join(DEPLOY_ROOT, "articles");
+const QIITA_DIR = path.join(DEPLOY_ROOT, "public");
+const ZENN_IMG_DIR = path.join(DEPLOY_ROOT, "images");
 
 // ─── 免責事項 (マーカで囲んで冪等付与) ────────────────────────────────────────
 const DISCLAIMER_START = "<!-- SYNCLORE_DISCLAIMER_START -->";
