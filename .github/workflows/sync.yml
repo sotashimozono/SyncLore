@@ -73,10 +73,6 @@ jobs:
             `drafts/` の変更を Zenn・Qiita 形式に変換しました。
             - Qiita publish 済み (id は `public/<slug>.md` に保管)
             - Zenn は merge 後に GitHub 連携で取り込みます
-          add-paths: |
-            articles/**
-            public/**
-            images/**
 
       - name: Enable auto-merge
         if: steps.cpr.outputs.pull-request-number
