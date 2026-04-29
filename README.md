@@ -189,6 +189,31 @@ archive から戻すには `git mv drafts/archive/foo.md drafts/foo.md`。Qiita 
 
 ターゲット記事がまだ Qiita 公開されていない (id 未割当) 場合、Qiita 出力では GitHub repo の `drafts/<slug>.md` にフォールバックリンクされます。コードブロック内の `[[...]]` は変換されません。表示テキストを省略すると target draft の `title` が使われます。
 
+archive 配下 (`drafts/archive/<slug>.md`) の記事も link target として有効です。記事は `articles/`・`public/` に残ったまま凍結されているため、`[[archived-slug]]` は通常通り公開 URL に解決されます。
+
+### 記事を rename する (aliases:)
+
+`drafts/foo.md` を `drafts/foo-v2.md` に rename したいとき、Qiita id が引き継げないと**新規投稿として重複**してしまいます。これを避けるには新ファイルのフロントマターで旧 slug を宣言します。
+
+```yaml
+---
+title: "..."
+publish: true
+aliases: ["foo"]   # ← 旧 slug
+---
+```
+
+`convert.js` の動作:
+
+- 他記事の `[[foo]]` は `foo-v2` の URL に解決される (alias 逆引き)
+- `public/foo.md` に id があれば `public/foo-v2.md` に id を migrate
+- 旧 `articles/foo.md` と `public/foo.md` は CI が削除 (orphan 防止)
+
+これで Qiita 側は同じ id のまま update され (URL は id ベースなので変わらない)、wiki-link も切れません。
+
+> ⚠️ Zenn の URL は slug ベースのため、rename すると `https://zenn.dev/.../articles/foo` は 404 になり、`/articles/foo-v2` が新 URL になります。これは Zenn 側の制約で SyncLore では救えません。
+> ⚠️ `drafts/images/<slug>/` は自動 migrate されません。必要なら `git mv` で手動移動を。
+
 ### 画像を使う
 
 `drafts/images/<slug>/figure1.png` に置けば、CI が `images/<slug>/` にコピーします。記事内では Zenn 形式で参照:

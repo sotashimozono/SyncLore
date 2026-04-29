@@ -101,28 +101,101 @@ function dq(value) {
 const WIKI_LINK_RE = /\[\[([^\]\|\n]+)(?:\|([^\]\n]+))?\]\]/g;
 const CODE_SPLIT_RE = /(```[\s\S]*?```|`[^`\n]*`)/;
 
+// slugMap = { primary: Map<slug, {title, qiitaId, source}>, aliasMap: Map<aliasSlug, primarySlug> }
+//   primary: drafts/*.md と drafts/archive/*.md 両方を含む。記事は archive 移動後も
+//            articles/<slug>.md / public/<slug>.md が deploy に残っているので link target
+//            として有効。
+//   aliasMap: フロントマターの aliases:[old-slug,...] を逆引き登録。rename 時に
+//             [[old-slug]] が新 slug の URL に解決されるようにする。
 function buildSlugMap() {
-  const map = new Map();
-  if (!fs.existsSync(DRAFTS_DIR)) return map;
-  for (const f of fs.readdirSync(DRAFTS_DIR)) {
-    if (path.extname(f) !== ".md" || f === "template.md") continue;
-    const slug = path.basename(f, ".md");
-    let title = null;
-    try {
-      const draftFm = matter(fs.readFileSync(path.join(DRAFTS_DIR, f), "utf8")).data || {};
-      title = draftFm.title || null;
-    } catch {}
-    let qiitaId = null;
-    const qPath = path.join(QIITA_DIR, f);
-    if (fs.existsSync(qPath)) {
+  const primary = new Map();
+  const aliasMap = new Map();
+
+  function ingest(dir, source) {
+    if (!fs.existsSync(dir)) return;
+    for (const f of fs.readdirSync(dir)) {
+      if (path.extname(f) !== ".md" || f === "template.md") continue;
+      const slug = path.basename(f, ".md");
+      let draftFm = {};
       try {
-        const qFm = matter(fs.readFileSync(qPath, "utf8")).data || {};
-        qiitaId = qFm.id || null;
+        draftFm = matter(fs.readFileSync(path.join(dir, f), "utf8")).data || {};
       } catch {}
+      const qPath = path.join(QIITA_DIR, f);
+      let qiitaId = null;
+      if (fs.existsSync(qPath)) {
+        try {
+          const qFm = matter(fs.readFileSync(qPath, "utf8")).data || {};
+          qiitaId = qFm.id || null;
+        } catch {}
+      }
+      primary.set(slug, { title: draftFm.title || null, qiitaId, source });
+      const aliases = Array.isArray(draftFm.aliases) ? draftFm.aliases : [];
+      for (const a of aliases) {
+        if (typeof a !== "string" || !a.trim()) continue;
+        const aliasSlug = a.trim().replace(/\.md$/, "");
+        if (aliasMap.has(aliasSlug)) {
+          console.warn(
+            `  [WARN] alias collision: '${aliasSlug}' claimed by both '${aliasMap.get(aliasSlug)}' and '${slug}' (keeping first)`,
+          );
+          continue;
+        }
+        aliasMap.set(aliasSlug, slug);
+      }
     }
-    map.set(slug, { title, qiitaId });
   }
-  return map;
+
+  ingest(DRAFTS_DIR, "top");
+  ingest(path.join(DRAFTS_DIR, "archive"), "archive");
+  return { primary, aliasMap };
+}
+
+function resolveSlug(target, slugMap) {
+  if (slugMap.primary.has(target)) return target;
+  if (slugMap.aliasMap.has(target)) return slugMap.aliasMap.get(target);
+  return null;
+}
+
+// rename 検出時の Qiita id 移動 + orphan cleanup。
+// drafts/<primary>.md に aliases:[<old>] があり、deploy/public/<old>.md に id がある場合:
+//   1. その id を primary entry に migrate (LIVE 出力時に引き継がせる)
+//   2. deploy/public/<old>.md と articles/<old>.md を削除 (qiita publish の重複対策)
+function migrateQiitaIdsForAliases(slugMap) {
+  for (const [aliasSlug, primarySlug] of slugMap.aliasMap) {
+    if (aliasSlug === primarySlug) continue;
+    const aliasQPath = path.join(QIITA_DIR, `${aliasSlug}.md`);
+    if (!fs.existsSync(aliasQPath)) continue;
+    let aliasFm = {};
+    try {
+      aliasFm = matter(fs.readFileSync(aliasQPath, "utf8")).data || {};
+    } catch {}
+    if (!aliasFm.id) continue;
+
+    const primaryEntry = slugMap.primary.get(primarySlug);
+    if (!primaryEntry) continue;
+
+    if (primaryEntry.qiitaId && primaryEntry.qiitaId !== aliasFm.id) {
+      console.warn(
+        `  [WARN] alias migration skipped: '${primarySlug}' already has qiita_id ${primaryEntry.qiitaId}, refusing to overwrite with '${aliasSlug}' id ${aliasFm.id}`,
+      );
+      continue;
+    }
+
+    if (!primaryEntry.qiitaId) {
+      console.log(`  [MIGRATE] qiita id ${aliasFm.id}: ${aliasSlug} -> ${primarySlug}`);
+      primaryEntry.qiitaId = aliasFm.id;
+    }
+
+    // 旧 outputs を削除 (orphan 化を防ぎ、qiita publish が同じ id を二重 push しないため)
+    const aliasZennPath = path.join(ZENN_DIR, `${aliasSlug}.md`);
+    if (fs.existsSync(aliasQPath)) {
+      fs.unlinkSync(aliasQPath);
+      console.log(`            removed public/${aliasSlug}.md`);
+    }
+    if (fs.existsSync(aliasZennPath)) {
+      fs.unlinkSync(aliasZennPath);
+      console.log(`            removed articles/${aliasSlug}.md`);
+    }
+  }
 }
 
 function transformWikiLinks(body, platform, slugMap, currentSlug) {
@@ -132,32 +205,36 @@ function transformWikiLinks(body, platform, slugMap, currentSlug) {
       // i 奇数 = code (split が match を含めるため)。code はそのまま
       if (i % 2 === 1) return part;
       return part.replace(WIKI_LINK_RE, (match, target, display) => {
-        const slug = target.replace(/\.md$/, "").trim();
-        if (slug === currentSlug) {
+        const rawSlug = target.replace(/\.md$/, "").trim();
+        if (rawSlug === currentSlug) {
           console.warn(`  [WARN] self-reference wiki link: [[${target}]] in ${currentSlug}.md (left as-is)`);
           return match;
         }
-        const entry = slugMap.get(slug);
-        if (!entry) {
+        const resolved = resolveSlug(rawSlug, slugMap);
+        if (!resolved) {
           console.warn(`  [WARN] unknown wiki link target: [[${target}]] in ${currentSlug}.md (left as-is)`);
           return match;
         }
-        const text = (display || entry.title || slug).trim().replace(/[\[\]]/g, "");
+        if (resolved !== rawSlug) {
+          console.log(`  [INFO] wiki link via alias: [[${rawSlug}]] -> ${resolved} in ${currentSlug}.md`);
+        }
+        const entry = slugMap.primary.get(resolved);
+        const text = (display || entry.title || resolved).trim().replace(/[\[\]]/g, "");
         if (platform === "zenn") {
           if (!ZENN_USER) {
             console.warn(`  [WARN] ZENN_USERNAME / GITHUB_REPOSITORY not set; [[${target}]] left as-is`);
             return match;
           }
-          return `[${text}](https://zenn.dev/${ZENN_USER}/articles/${slug})`;
+          return `[${text}](https://zenn.dev/${ZENN_USER}/articles/${resolved})`;
         }
         if (platform === "qiita") {
           if (entry.qiitaId && QIITA_USER) {
             return `[${text}](https://qiita.com/${QIITA_USER}/items/${entry.qiitaId})`;
           }
-          // Fallback (b): GitHub の drafts/<slug>.md
+          // Fallback (b): GitHub の drafts/<resolved>.md
           if (REPO_FULL) {
             console.warn(`  [WARN] [[${target}]] has no Qiita id yet; falling back to GitHub link in Qiita output`);
-            return `[${text}](https://github.com/${REPO_FULL}/blob/main/drafts/${slug}.md)`;
+            return `[${text}](https://github.com/${REPO_FULL}/blob/main/drafts/${resolved}.md)`;
           }
           console.warn(`  [WARN] [[${target}]] has no Qiita id and no GITHUB_REPOSITORY env; left as-is`);
           return match;
@@ -267,8 +344,11 @@ function parsePublishAt(value) {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-// Wiki-link 解決用 slug マップを最初に構築 (drafts/*.md と public/*.md から)
+// Wiki-link 解決用 slug マップを最初に構築 (drafts/*.md, drafts/archive/*.md, public/*.md から)
 const slugMap = buildSlugMap();
+
+// rename 検出: aliases:[old-slug] が宣言されていたら old の qiita id を primary に移す
+migrateQiitaIdsForAliases(slugMap);
 
 const draftFiles = fs
   .readdirSync(DRAFTS_DIR)
@@ -322,7 +402,16 @@ for (const file of draftFiles) {
 
   fs.writeFileSync(zennPath, buildZennContent(data, zennBody), "utf8");
 
-  const existingQiitaFm = readExistingFrontmatter(qiitaPath);
+  // 既存の public/<slug>.md が無くても、aliases から migrate された qiita id があれば
+  // それを id として引き継ぐ。slugMap.primary[slug].qiitaId は migrateQiitaIdsForAliases で
+  // 更新されている可能性がある。
+  const rawExistingQiitaFm = readExistingFrontmatter(qiitaPath);
+  const slugMapEntry = slugMap.primary.get(slug);
+  const existingQiitaFm =
+    rawExistingQiitaFm ||
+    (slugMapEntry && slugMapEntry.qiitaId
+      ? { id: slugMapEntry.qiitaId }
+      : null);
   fs.writeFileSync(
     qiitaPath,
     buildQiitaContent(data, existingQiitaFm, qiitaBody),
