@@ -68,6 +68,8 @@ publish_at: "2026-05-01T10:00:00+09:00"
 
 プラットフォームごとに正しい URL に変換される (Zenn → `zenn.dev/...`、Qiita → `qiita.com/...`)。`[[slug|表示テキスト]]` で表示テキストも指定可能。コードブロック内は無変換。
 
+archive 配下 (`drafts/archive/<slug>.md`) の記事も link target として有効。`articles/`・`public/` が deploy に残っているため、過去記事への参照は切れない。rename した記事に対しては `aliases` 経由で `[[old-slug]]` も解決される (後述)。
+
 ## archive
 
 公開した記事を「もう触らないが Qiita / Zenn では公開状態のまま残しておく」状態にしたい場合は、`drafts/<slug>.md` を `drafts/archive/<slug>.md` に move する。
@@ -84,6 +86,30 @@ git push
 - 編集しても Qiita / Zenn が誤って update されない
 
 archive から戻すには逆方向に move するだけ。Qiita id は `public/<slug>.md` に保持されているので、戻して push すれば PATCH で update される。
+
+## rename (aliases)
+
+`drafts/foo.md` を `drafts/foo-v2.md` に rename したい場合、Qiita id を引き継がないと **新規投稿として重複** してしまう。これを避けるには、新ファイルのフロントマターで旧 slug を `aliases` に宣言する。
+
+```yaml
+---
+title: "..."
+publish: true
+aliases: ["foo"]   # ← 旧 slug
+---
+```
+
+CI の動作:
+
+- 他記事の `[[foo]]` は新 slug の URL に解決される (alias 逆引き)
+- `public/foo.md` の id を `public/foo-v2.md` に migrate
+- 旧 `articles/foo.md`・`public/foo.md` は orphan として削除される
+- Qiita 側は同じ id が PATCH されるだけで、重複投稿にはならない
+
+注意点:
+
+- Zenn の URL は slug ベースなので、rename すると `https://zenn.dev/.../articles/foo` は 404 になり、`/articles/foo-v2` が新 URL になる。これは Zenn 側の制約で SyncLore では救えない
+- `drafts/images/<slug>/` は自動 migrate されない。`git mv` で手動移動が必要
 
 ## 画像
 
