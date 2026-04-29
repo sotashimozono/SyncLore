@@ -155,6 +155,40 @@ delete: true   # ★ 不可逆: Qiita 側は API DELETE
 
 > ⚠️ Qiita API DELETE は不可逆です。誤って `delete: true` を書かないよう注意。
 
+### 公開済み記事を archive する
+
+公開した記事を「もう触らない、けど Qiita / Zenn では公開状態のまま残しておく」状態にしたいときは、`drafts/<slug>.md` を `drafts/archive/<slug>.md` に move します。
+
+```bash
+git mv drafts/foo.md drafts/archive/foo.md
+git commit -m "archive: foo"
+git push
+```
+
+CI は `drafts/` 直下のみ走査するため、`drafts/archive/` 配下のファイルは
+
+- 変換されない (`articles/<slug>.md`・`public/<slug>.md` は最後の状態で凍結)
+- INDEX.md にも出ない
+- 編集しても push 時に何も起きない (Qiita / Zenn が誤って update されない)
+
+archive から戻すには `git mv drafts/archive/foo.md drafts/foo.md`。Qiita id は `public/foo.md` に保管されたままなので、戻して push すれば PATCH で update されます。
+
+### 記事間リンク (`[[slug]]`)
+
+`drafts/<slug>.md` の本文中で他の記事を参照する際は、Obsidian 風の wiki-link が使えます。
+
+```markdown
+詳しくは [[synclore-intro]] を参照。
+[[synclore-intro|記事の投稿を自動化するツール SyncLore]] の続編です。
+```
+
+公開時に各プラットフォーム向けの URL に自動変換されます:
+
+- Zenn 出力: `[表示テキスト](https://zenn.dev/<user>/articles/<slug>)`
+- Qiita 出力: `[表示テキスト](https://qiita.com/<user>/items/<id>)` (id は `public/<slug>.md` から取得)
+
+ターゲット記事がまだ Qiita 公開されていない (id 未割当) 場合、Qiita 出力では GitHub repo の `drafts/<slug>.md` にフォールバックリンクされます。コードブロック内の `[[...]]` は変換されません。表示テキストを省略すると target draft の `title` が使われます。
+
 ### 画像を使う
 
 `drafts/images/<slug>/figure1.png` に置けば、CI が `images/<slug>/` にコピーします。記事内では Zenn 形式で参照:
