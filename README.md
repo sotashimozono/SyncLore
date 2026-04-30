@@ -116,12 +116,47 @@ publish_at: "2026-05-01T10:00:00+09:00"   # ISO-8601 + TZ 必須
 仕組み:
 
 - `sync.yml` は `cron: "0 * * * *"` (毎時 00 分) でも起動
-- `convert.js` が `publish_at <= now` の draft を **effective LIVE** として処理
+- `convert.js` が `publish_at <= now` の draft を **effective LIVE** として処理 (Zenn `published:true` / Qiita `private:false` で出力)
 - 公開後、`drafts/<slug>.md` は `publish: false` のままだが、`publish_at` が過去なので毎回 LIVE 扱い
 - 取り下げたい場合は `publish_at` を消す or 未来時刻に戻す
 
 > 粒度: 毎時 00 分の cron + GitHub Actions の遅延 (~15 分) で、最大 1 時間程度のラグ。技術記事には十分。
 > Zenn-CLI / Qiita-CLI どちらも公式には予約公開機能を持たないため、SyncLore で実装しています。
+
+#### 予約日時が現在時刻より古い場合の挙動
+
+`publish_at` は「未来」も「過去」も `publish_at <= now → LIVE` という 1 つのルールで扱います。具体的には:
+
+| draft の状態 | 解釈 | Zenn 出力 | Qiita 出力 |
+| --- | --- | --- | --- |
+| `publish: true` | LIVE 即時 (`publish_at` は無視) | `published: true` | `private: false` |
+| `publish: false` + `publish_at <= now` | **LIVE** (予約発火 / 過去日時即時) | `published: true` | `private: false` |
+| `publish: false` + `publish_at > now` + 既存出力なし | SCHEDULED (待機) | (出力されない) | (出力されない) |
+| `publish: false` + `publish_at > now` + 既存出力あり | HIDE (再公開予約待ち) | `published: false` | `private: true` |
+| `publish: false` + `publish_at` なし + 既存出力あり | HIDE (取り下げ) | `published: false` | `private: true` |
+| `publish: false` + `publish_at` なし + 既存出力なし | SKIP (執筆中) | (出力されない) | (出力されない) |
+
+含意:
+
+- 予約発火後 (`publish_at` が過去になった後) も `drafts/<slug>.md` を `publish: false` のまま放置 OK。毎時 cron が常に LIVE として再生成するため**公開状態が維持される**。
+- 「最初から過去日時を書いて push」しても予約発火と同じ経路で即時公開される。
+- 予約を取り下げたい場合は `publish_at` を削除するか未来時刻に書き換える。`publish_at` を残したまま `publish: false` だけ書いても効果がない (過去日時はずっと LIVE 扱い)。
+- `publish_at` のパースに失敗した値 (TZ 抜きや不正形式) は「`publish_at` なし」と同じ扱い。**TZ 必須**。
+
+```mermaid
+flowchart TD
+    Start["drafts/&lt;slug&gt;.md"] --> P{"publish:true?"}
+    P -->|yes| LIVE_now["LIVE 即時"]
+    P -->|no| PA{"publish_at?"}
+    PA -->|なし| HasOut1{"既存出力?"}
+    HasOut1 -->|あり| HIDE
+    HasOut1 -->|なし| SKIP
+    PA -->|あり| Past{"publish_at &le; now?"}
+    Past -->|yes| LIVE_eff["LIVE 予約発火 / 過去日時即時"]
+    Past -->|no| HasOut2{"既存出力?"}
+    HasOut2 -->|なし| SCHEDULED
+    HasOut2 -->|あり| HIDE2["HIDE"]
+```
 
 ### 修正する
 
