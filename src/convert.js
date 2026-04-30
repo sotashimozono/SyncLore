@@ -5,16 +5,25 @@
  * Qiita 用 public/<slug>.md を冪等に再生成する。
  *
  * フロントマター仕様 (drafts/<slug>.md):
- *   title:    string  (必須)
- *   emoji:    string  (Zenn 専用、省略時 📝)
- *   type:     "tech" | "idea" (Zenn 専用、省略時 tech)
- *   topics:   string[] (タグ、Zenn は最大 5)
- *   publish:  boolean — true で公開、false で非公開へ書き戻し
+ *   title:      string   (必須)
+ *   emoji:      string   (Zenn 専用、省略時 📝)
+ *   type:       "tech" | "idea" (Zenn 専用、省略時 tech)
+ *   topics:     string[] (タグ、Zenn は最大 5)
+ *   publish:    boolean  — true で即時公開、false で非公開
+ *   publish_at: ISO-8601 string (任意) — 予約公開時刻 (TZ 必須)
  *
- * 状態判定 (slug ごと):
- *   publish:true                                       → LIVE  (公開)
- *   publish:false かつ articles/public のいずれか既存 → HIDE  (unpublish)
- *   publish:false かつ既存出力なし                     → SKIP  (執筆中)
+ * 状態判定 (slug ごと、publish_at の解釈は現在時刻に依存):
+ *   publish:true                                          → LIVE  (即時公開、publish_at は無視)
+ *   publish:false かつ publish_at <= now                  → LIVE  (予約発火 / 過去日時即時公開)
+ *   publish:false かつ publish_at > now かつ既存出力なし  → SCHEDULED (待機)
+ *   publish:false かつ articles/public のいずれか既存     → HIDE  (unpublish)
+ *   publish:false かつ既存出力なし                        → SKIP  (執筆中)
+ *
+ * 過去日時 (publish_at <= now) の含意:
+ *   - 予約公開の発火と「最初から過去日時を書く」は同じパス。
+ *   - 一度公開した後 publish:false のまま放置しても、publish_at が過去なら
+ *     毎時 cron 実行のたびに LIVE 扱いで再生成される (= 公開維持)。
+ *   - 予約取り下げは publish_at を消すか未来時刻に戻す。
  *
  * - drafts/<slug>.md は削除しない (SSoT)
  * - 免責事項は HTML コメントマーカで囲み、再変換時に重複しない
@@ -270,12 +279,16 @@ function appendDisclaimer(body) {
 
 // ─── Zenn 用フロントマター生成 ────────────────────────────────────────────────
 
-function buildZennContent(data, body) {
+// isPublic は呼び出し側で計算済みの「実効公開状態」。
+//   data.publish === true → 即時公開
+//   data.publish === false かつ publish_at <= now → 予約発火 (or 過去日時で即時公開)
+// data.publish を直接見ると予約公開が反映されないので isPublic を引き回している。
+function buildZennContent(data, body, isPublic) {
   const title = data.title || "(タイトル未設定)";
   const emoji = data.emoji || "📝";
   const type = data.type === "idea" ? "idea" : "tech";
   const topics = Array.isArray(data.topics) ? data.topics : [];
-  const published = data.publish === true;
+  const published = isPublic === true;
 
   const lines = ["---"];
   lines.push(`title: ${dq(title)}`);
@@ -294,12 +307,13 @@ function buildZennContent(data, body) {
 
 // ─── Qiita 用フロントマター生成 ───────────────────────────────────────────────
 
-function buildQiitaContent(data, existingFm, body) {
+function buildQiitaContent(data, existingFm, body, isPublic) {
   const title = data.title || "(タイトル未設定)";
   // qiita-cli expects tags as string[] (file-system-repo.js fromItem maps API
   // {name, versions} -> name string). [{name}] objects break the API payload.
   const tags = Array.isArray(data.topics) ? data.topics : [];
-  const isPrivate = data.publish !== true;
+  // isPublic は buildZennContent と同じく実効公開状態 (publish_at 反映済)。
+  const isPrivate = isPublic !== true;
 
   const updated_at = (existingFm && existingFm.updated_at) || "";
   const orgName =
@@ -400,7 +414,7 @@ for (const file of draftFiles) {
     transformWikiLinks(parsed.content, "qiita", slugMap, slug),
   );
 
-  fs.writeFileSync(zennPath, buildZennContent(data, zennBody), "utf8");
+  fs.writeFileSync(zennPath, buildZennContent(data, zennBody, isPublic), "utf8");
 
   // 既存の public/<slug>.md が無くても、aliases から migrate された qiita id があれば
   // それを id として引き継ぐ。slugMap.primary[slug].qiitaId は migrateQiitaIdsForAliases で
@@ -414,7 +428,7 @@ for (const file of draftFiles) {
       : null);
   fs.writeFileSync(
     qiitaPath,
-    buildQiitaContent(data, existingQiitaFm, qiitaBody),
+    buildQiitaContent(data, existingQiitaFm, qiitaBody, isPublic),
     "utf8",
   );
 
