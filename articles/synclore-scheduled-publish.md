@@ -8,7 +8,7 @@ topics:
   - "qiita"
   - "zenn"
   - "ci"
-published: false
+published: true
 ---
 
 [SyncLore](https://github.com/sotashimozono/SyncLore) は `drafts/` 配下の Markdown file を Zenn と Qiita に同時公開するためのツール。**予約投稿** の機能も組み込まれており、この記事自体も予約公開で出ている。
