@@ -281,6 +281,15 @@ archive 配下 (`drafts/archive/<slug>.md`) の記事も link target として�
 
 複数記事をまたぐ連載を書くときは frontmatter に `series: "シリーズ名"` を書きます。同じ値を持つ全 draft の cross-link footer (「同じシリーズの記事」一覧) が convert 時に各記事末尾 (免責事項の上) に自動挿入されます。順序は `publish_at` 昇順 (無ければファイル名順)、自分自身は太字でリンクなし、未公開 sibling は plain text で表示されます。Zenn 出力は `https://zenn.dev/<user>/articles/<slug>`、Qiita 出力は `https://qiita.com/<user>/items/<id>` のリンク形式になります。
 
+新しい記事を追加すると、同 series の sibling 記事の footer も自動再生成されて両プラットフォームに再 push されます。`convert.js` は既存の `articles/<slug>.md` / `public/<slug>.md` と diff を取り、内容が変わった sibling だけを `[REPUBLISH]` として書き出します (完全一致なら `[NOOP]` で書き込み自体をスキップ)。ログ例:
+
+```
+[LIVE] my-series-part-3.md          (new)
+[REPUBLISH] my-series-part-1.md     (footer に新 sibling 追加)
+[REPUBLISH] my-series-part-2.md     (同上)
+[NOOP] unrelated-article.md         (no diff)
+```
+
 ### 記事を rename する (aliases:)
 
 `drafts/foo.md` を `drafts/foo-v2.md` に rename したいとき、Qiita id が引き継げないと**新規投稿として重複**してしまいます。これを避けるには新ファイルのフロントマターで旧 slug を宣言します。
