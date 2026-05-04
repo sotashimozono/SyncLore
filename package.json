@@ -4,6 +4,7 @@
   "description": "Repository for deploying articles to Qiita and Zenn",
   "main": "index.js",
   "scripts": {
+    "analytics": "node src/analytics.js",
     "convert": "node src/convert.js",
     "dry-run": "node src/dry-run.js",
     "delete": "node src/synclore-delete.js",

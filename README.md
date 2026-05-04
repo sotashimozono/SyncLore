@@ -319,6 +319,14 @@ cd .deploy && npm run preview:qiita                   # Qiita プレビュー
 何月何日に何が公開されたかを後から振り返れるほか、SNS シェア用の URL を即取得したり、connect 記事の選定に使えます。
 状態に変化がない再実行では何も追記されません (idempotent)。ファイルは main に commit され履歴として永続化されます (`grep slug log/publish-history.jsonl` で個別記事の遍歴を辿れる)。
 
+### Analytics (Qiita PV / LGTM の取得)
+
+`npm run analytics` で自分の Qiita 全公開記事の `page_views_count` / `likes_count` / `stocks_count` / `comments_count` を pull し、`log/analytics-YYYY-MM-DD.json` に snapshot を保存します。前回 snapshot との差分 (`+145 PV +23 LGTM` 等) を stdout 表示。
+
+`QIITA_TOKEN` 環境変数 ([Qiita アプリ設定](https://qiita.com/settings/applications) の `read_qiita` scope) が必要です。GitHub Actions の cron (`0 0 * * *` 等) に `QIITA_TOKEN` secret を渡して毎日走らせれば、`log/` に時系列 snapshot が蓄積され、後から PV 推移を分析できます。
+
+Zenn analytics は Zenn API が現状提供されていないため未対応です。
+
 ### Branch 命名規約 (release-drafter autolabeler 用)
 
 PR を作るときの branch 名を以下に揃えると、release-drafter が自動でラベルを付け、リリースノートのカテゴリに振り分けてくれます。
