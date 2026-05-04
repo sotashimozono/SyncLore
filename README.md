@@ -259,6 +259,11 @@ archive から戻すには `git mv drafts/archive/foo.md drafts/foo.md`。Qiita 
 
 ターゲット記事がまだ Qiita 公開されていない (id 未割当) 場合、Qiita 出力では GitHub repo の `drafts/<slug>.md` にフォールバックリンクされます。コードブロック内の `[[...]]` は変換されません。表示テキストを省略すると target draft の `title` が使われます。
 
+ユーザ名の解決順位は **`SYNCLORE_ZENN_USER` / `SYNCLORE_QIITA_USER`** 環境変数 → 既存の `ZENN_USERNAME` / `QIITA_USERNAME` → `GITHUB_REPOSITORY` の owner。
+ローカル変換時は `SYNCLORE_ZENN_USER=<ユーザ名> npm run convert` のように指定すれば link target を自分のドメインに固定できます。
+解決ロジック本体は [`src/lib/wikilink.js`](./src/lib/wikilink.js) に分離されているので、独自フォーマット (例: GitHub Pages, 別ドメイン) に変えたい場合はここだけ書き換えれば OK。
+将来 `synclore.config.toml` (PR #9 予定) からも同じ値を読めるようになります。
+
 archive 配下 (`drafts/archive/<slug>.md`) の記事も link target として有効です。記事は `articles/`・`public/` に残ったまま凍結されているため、`[[archived-slug]]` は通常通り公開 URL に解決されます。
 
 ### 連載記事を書く (`series:`)
