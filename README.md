@@ -101,6 +101,11 @@ publish: false           # 下書き中は false
 
 `publish: true` にして main へ push すると公開されます。
 
+### push 前に確認する (dry-run)
+
+`npm run dry-run` を実行すると、`drafts/*.md` 各ファイルが `convert.js` の次の実行でどう分類されるか (LIVE / SCHEDULED / HIDDEN / TOMBSTONE / SKIP) を**書き込みなし**で表示します。
+push して 1 時間後の cron が何をするか不安なときの最終確認に使ってください (Qiita DELETE 予定の `delete: true` も事前に見えます)。
+
 ### 予約公開する (scheduled)
 
 未来の日時を指定して push しておけば、その時刻を過ぎた後の cron 実行で自動公開されます。
