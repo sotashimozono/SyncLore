@@ -264,6 +264,7 @@ npm install
 git worktree add .deploy deploy                       # 初回のみ
 SYNCLORE_DEPLOY_ROOT=$(pwd)/.deploy npm run convert   # 変換
 cd .deploy && npm run preview:zenn                    # Zenn プレビュー
+cd .deploy && npm run preview:qiita                   # Qiita プレビュー
 ```
 
 `SYNCLORE_DEPLOY_ROOT` を未指定にすると main の working tree に生成されますが `.gitignore` で commit できないので、ローカル確認用です。
