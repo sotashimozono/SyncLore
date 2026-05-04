@@ -10,6 +10,7 @@
     "index": "node src/build-index.js",
     "init:fork": "node src/init-fork.js",
     "lint": "node src/lint.js",
+    "new": "node src/new.js",
     "preview:qiita": "npx qiita preview",
     "preview:zenn": "npx zenn preview"
   },
