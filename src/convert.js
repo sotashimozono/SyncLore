@@ -265,6 +265,25 @@ function readExistingFrontmatter(filePath) {
   }
 }
 
+/**
+ * 既存ファイルと比較して内容が違う時だけ書き込む。
+ *
+ * @returns {"new"|"changed"|"noop"}
+ *   - "new":     既存ファイルが無く、新規作成した
+ *   - "changed": 既存ファイルがあり、内容が違ったので書き換えた
+ *   - "noop":    既存ファイルと完全一致だったので何もしなかった
+ */
+function writeIfChanged(filePath, content) {
+  if (!fs.existsSync(filePath)) {
+    fs.writeFileSync(filePath, content, "utf8");
+    return "new";
+  }
+  const existing = fs.readFileSync(filePath, "utf8");
+  if (existing === content) return "noop";
+  fs.writeFileSync(filePath, content, "utf8");
+  return "changed";
+}
+
 function stripDisclaimer(body) {
   const start = body.indexOf(DISCLAIMER_START);
   if (start === -1) return body.trimEnd();
@@ -382,7 +401,9 @@ function recordLedgerIfChanged(slug, draftData, action, platform, qiitaId) {
 // ─── メイン処理 ───────────────────────────────────────────────────────────────
 
 let live = 0;
+let republished = 0;
 let hidden = 0;
+let unchanged = 0;
 let skipped = 0;
 let scheduled = 0;
 let tombstone = 0;
@@ -472,8 +493,6 @@ for (const file of draftFiles) {
     seriesFooterQiita ? `${qiitaBodyRaw.trimEnd()}\n\n${seriesFooterQiita}` : qiitaBodyRaw,
   );
 
-  fs.writeFileSync(zennPath, buildZennContent(data, zennBody, isPublic), "utf8");
-
   // 既存の public/<slug>.md が無くても、aliases から migrate された qiita id があれば
   // それを id として引き継ぐ。slugMap.primary[slug].qiitaId は migrateQiitaIdsForAliases で
   // 更新されている可能性がある。
@@ -484,10 +503,20 @@ for (const file of draftFiles) {
     (slugMapEntry && slugMapEntry.qiitaId
       ? { id: slugMapEntry.qiitaId }
       : null);
-  fs.writeFileSync(
+
+  // 書き込み前に既存ファイルと diff を取り、状態を分類する:
+  //   - new:     ファイルが無かった (= 初回 publish)         → [LIVE]
+  //   - changed: ファイルがあったが内容が変わっていた         → [REPUBLISH] (or [HIDE])
+  //              series 連載で sibling が増えた / 本文を直した / 状態が isPublic を跨いだ等
+  //   - noop:    完全一致 → 書かない (deploy 側にも push されない)
+  // Zenn / Qiita 両 platform の状態を組み合わせて最終 label を決める。
+  const zennStatus = writeIfChanged(
+    zennPath,
+    buildZennContent(data, zennBody, isPublic),
+  );
+  const qiitaStatus = writeIfChanged(
     qiitaPath,
     buildQiitaContent(data, existingQiitaFm, qiitaBody, isPublic),
-    "utf8",
   );
 
   copyDirRecursive(
@@ -495,26 +524,64 @@ for (const file of draftFiles) {
     path.join(ZENN_IMG_DIR, slug),
   );
 
+  // 集計用: いずれかの platform で何か起きたか、両方 noop か
+  const anyNew = zennStatus === "new" || qiitaStatus === "new";
+  const anyChanged = zennStatus === "changed" || qiitaStatus === "changed";
+  const allNoop = zennStatus === "noop" && qiitaStatus === "noop";
+
+  const idSuffix =
+    existingQiitaFm && existingQiitaFm.id
+      ? ` (qiita_id: ${existingQiitaFm.id})`
+      : "";
+
+  // ledger 用: action は分類結果に応じて決める。
+  //   - [LIVE]      初回 publish (anyNew) → "publish" (ただし直近 ledger が live なら "update")
+  //   - [REPUBLISH] 既存出力ありで diff → "update"
+  //   - [NOOP]      両 platform 完全一致 → ledger も append しない (recordLedgerIfChanged を呼ばない)
+  //   - [HIDE]      publish:false で既存出力あり → "hide" (allNoop なら append されない)
+  // recordLedgerIfChanged 内で isSameState による idempotent 制御もかかるので、
+  // [REPUBLISH] でも実質 ledger 状態が変わらなければ append されない。
+  const qid = (existingQiitaFm && existingQiitaFm.id) || null;
+
   if (isPublic) {
-    const idSuffix =
-      existingQiitaFm && existingQiitaFm.id
-        ? ` (qiita_id: ${existingQiitaFm.id})`
-        : "";
-    console.log(`  [LIVE] ${file}${idSuffix}`);
-    live++;
-    // ledger: 直近 entry が無い / hide / tombstone なら publish, 既に publish/update
-    // 状態なら update。idempotent 制御は recordLedgerIfChanged 内の isSameState で行う。
-    const prevEntry = lastEntryFor(slug);
-    const isFirstPublish =
-      !prevEntry || prevEntry.action === "hide" || prevEntry.action === "tombstone";
-    const action = isFirstPublish ? "publish" : "update";
-    const qid = (existingQiitaFm && existingQiitaFm.id) || null;
-    recordLedgerIfChanged(slug, data, action, ["zenn", "qiita"], qid);
+    if (anyNew) {
+      // 少なくとも片方が新規作成 = 初回 publish。両 platform 同時 publish が建前なので
+      // 片方だけ new + もう片方 changed は実質 [LIVE] と同じ意味で扱う。
+      console.log(`  [LIVE] ${file}${idSuffix}`);
+      live++;
+      // 直近 ledger が無い / hide / tombstone なら publish, 既に publish/update なら update。
+      const prevEntry = lastEntryFor(slug);
+      const isFirstPublish =
+        !prevEntry || prevEntry.action === "hide" || prevEntry.action === "tombstone";
+      const action = isFirstPublish ? "publish" : "update";
+      recordLedgerIfChanged(slug, data, action, ["zenn", "qiita"], qid);
+    } else if (anyChanged) {
+      // 既存ファイル両方ともあったが内容が変わっていた。
+      // 連載 footer 更新 / 本文修正 / その他のいずれかで再 push が必要。
+      console.log(`  [REPUBLISH] ${file}${idSuffix}`);
+      republished++;
+      // 既存出力があった = 既に publish 済みのはず。状態が live でなければ publish に戻す。
+      const prevEntry = lastEntryFor(slug);
+      const isFirstPublish =
+        !prevEntry || prevEntry.action === "hide" || prevEntry.action === "tombstone";
+      const action = isFirstPublish ? "publish" : "update";
+      recordLedgerIfChanged(slug, data, action, ["zenn", "qiita"], qid);
+    } else if (allNoop) {
+      // 両方とも完全一致 → re-push 不要、ledger も触らない
+      console.log(`  [NOOP] ${file}${idSuffix} (no diff)`);
+      unchanged++;
+    }
   } else {
-    console.log(`  [HIDE] ${file} (unpublished -> private:true / published:false)`);
-    hidden++;
-    const qid = (existingQiitaFm && existingQiitaFm.id) || null;
-    recordLedgerIfChanged(slug, data, "hide", ["zenn", "qiita"], qid);
+    // HIDE 側 (unpublish): 既存出力がある状態で publish:false に戻された draft。
+    // 状態が [HIDE] に切り替わった瞬間は changed、その後再 convert しても allNoop。
+    if (allNoop) {
+      console.log(`  [NOOP] ${file} (already hidden)`);
+      unchanged++;
+    } else {
+      console.log(`  [HIDE] ${file} (unpublished -> private:true / published:false)`);
+      hidden++;
+      recordLedgerIfChanged(slug, data, "hide", ["zenn", "qiita"], qid);
+    }
   }
 }
 
@@ -533,5 +600,5 @@ warnOrphans(ZENN_DIR, "articles");
 warnOrphans(QIITA_DIR, "public");
 
 console.log(
-  `\nDone. ${live} live, ${hidden} hidden, ${scheduled} scheduled, ${skipped} skipped, ${tombstone} tombstone.`,
+  `\nDone. ${live} live, ${republished} republished, ${hidden} hidden, ${unchanged} unchanged, ${scheduled} scheduled, ${skipped} skipped, ${tombstone} tombstone.`,
 );
