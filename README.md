@@ -104,7 +104,16 @@ GitHub Actions の `sync.yml` が両プラットフォームに同時公開し�
 
 ### 記事を書く
 
-`drafts/template.md` をコピーしてスラグ名を決めます。
+`npm run new -- "<title>"` で `drafts/<slug>.md` を template から 1 コマンドで生成できます。
+
+```bash
+npm run new -- "BiblioFetch.jl の citation graph"
+# → created drafts/bibliofetch-jl-citation-graph.md (publish: false / topics: [])
+```
+
+slug は title から自動生成 (NFKD 正規化 + 非英数字を `-` に置換 + 連続ハイフン圧縮)。同名 draft が既にある場合は exit 1、`--force` で上書きします。手で作りたい場合は従来通り `cp drafts/template.md drafts/<slug>.md` でも OK。
+
+frontmatter の主要フィールド:
 
 ```yaml
 ---
