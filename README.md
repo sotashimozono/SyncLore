@@ -39,22 +39,39 @@ Markdown 記事を **Zenn と Qiita の両方に自動公開**する一元管理
   → 新しい repo が作られ、`Include all branches` にチェックを入れると `deploy` branch も一緒にコピーされます (★ 入れ忘れ注意)
 - もしくは: 通常の "Fork" でも OK (deploy branch も自動でコピーされる)
 
-### 2. ローカルに clone してデモ記事を片付ける
+### 2. ローカルに clone して "My 化"
 
-このリポジトリには動作デモ用に [synclore-intro](https://qiita.com/sotashimozono/items/578f207e0ffb4eb7ecf5) という記事が入っています。**そのままだと自分の Qiita / Zenn に他人 (元 repo オーナ) の記事が出る**ため、まず削除します。
+このリポジトリには動作デモ用に [synclore-intro](https://qiita.com/sotashimozono/items/578f207e0ffb4eb7ecf5) などの記事が入っています。**そのままだと自分の Qiita / Zenn に他人 (元 repo オーナ) の記事が出る**ため、`init:fork` で一括退避します。
 
 ```bash
 git clone <your-new-repo-url>
 cd <your-new-repo>
 npm install
-git worktree add .deploy deploy   # 生成物 branch を .deploy/ に展開
 
-npm run init:fork                 # デモ記事を drafts/ と .deploy/ から削除
+# まず dry-run (何が変わるか確認するだけ)
+npm run init:fork
 
-# 確認して commit & push
-git add -A && git commit -m "init: remove SyncLore demo article" && git push
-cd .deploy && git add -A && git commit -m "init: remove SyncLore demo artifacts" && git push origin deploy && cd ..
+# 問題なければ apply (デモ記事を archive、package.json と README を書き換え)
+npm run init:fork -- --apply
+
+# repo を明示したい場合 (gh が無い / 推測したくない)
+npm run init:fork -- --apply --repo your-name/your-fork
 ```
+
+`init:fork --apply` がやること:
+
+- `drafts/synclore-*.md` を `drafts/archive/upstream-synclore/` に退避
+- `package.json` の `name` / `repository.url` / `homepage` / `bugs.url` を新 repo の URL に書き換え
+- README を fork 用にスリム化 (元 README は `docs/UPSTREAM_README.md` に保存)
+
+確認して commit:
+
+```bash
+git status && git diff
+git add -A && git commit -m "init: my-fy SyncLore fork" && git push
+```
+
+> 補足: `deploy` branch の生成物 (`.deploy/`) も整理したい場合は worktree を作って手動で削除してください (`init:fork` は main の整理のみを行います)。
 
 ### 3. Secrets / Variables / Public 化
 
