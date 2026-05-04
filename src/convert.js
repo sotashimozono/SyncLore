@@ -37,6 +37,7 @@ const fs = require("fs");
 const path = require("path");
 const matter = require("gray-matter");
 const { collectSeriesMembers, renderSeriesFooter } = require("./lib/series");
+const { appendLedger, lastEntryFor, isSameState } = require("./lib/ledger");
 
 // ─── パス定義 ────────────────────────────────────────────────────────────────
 // SOURCE_ROOT: drafts/ と src/ がある場所 (= main branch の checkout)。
@@ -343,6 +344,41 @@ function buildQiitaContent(data, existingFm, body, isPublic) {
   return `${lines.join("\n")}\n${body}`;
 }
 
+// ─── ledger emission helper ───────────────────────────────────────────────────
+// publish / update / tombstone / hide の各 action を log/publish-history.jsonl に
+// 追記する。lastEntryFor(slug) と比較して状態に変化がなければ append しない。
+//   - publish: 初回 LIVE (ledger に過去 record なし or 直近が hide/tombstone)
+//   - update:  既に publish 済みで再度 LIVE。フロントマター変化を取りうるが、
+//              isSameState() で「すべて同一」と判定されたら何もしない
+//   - hide:    HIDE (publish:false で既存出力あり)
+//   - tombstone: delete:true (synclore-delete.js が実体削除済 / 後で削除)
+function recordLedgerIfChanged(slug, draftData, action, platform, qiitaId) {
+  const title = draftData && draftData.title ? draftData.title : null;
+  const publishAt = draftData && draftData.publish_at ? draftData.publish_at : null;
+  const zennUrl =
+    ZENN_USER && (action === "publish" || action === "update")
+      ? `https://zenn.dev/${ZENN_USER}/articles/${slug}`
+      : null;
+  const qiitaUrl =
+    qiitaId && QIITA_USER && (action === "publish" || action === "update")
+      ? `https://qiita.com/${QIITA_USER}/items/${qiitaId}`
+      : null;
+  const next = {
+    slug,
+    action,
+    title,
+    platform: Array.isArray(platform) ? platform : [],
+    qiita_id: qiitaId || null,
+    qiita_url: qiitaUrl,
+    zenn_url: zennUrl,
+    publish_at: publishAt,
+  };
+  const prev = lastEntryFor(slug);
+  if (isSameState(prev, next)) return;
+  appendLedger(next);
+  console.log(`           ledger: ${action}`);
+}
+
 // ─── メイン処理 ───────────────────────────────────────────────────────────────
 
 let live = 0;
@@ -391,6 +427,7 @@ for (const file of draftFiles) {
   if (data.delete === true) {
     console.log(`  [TOMBSTONE] ${file} (delete:true; handled by synclore-delete.js)`);
     tombstone++;
+    recordLedgerIfChanged(slug, data, "tombstone", [], null);
     continue;
   }
 
@@ -465,9 +502,19 @@ for (const file of draftFiles) {
         : "";
     console.log(`  [LIVE] ${file}${idSuffix}`);
     live++;
+    // ledger: 直近 entry が無い / hide / tombstone なら publish, 既に publish/update
+    // 状態なら update。idempotent 制御は recordLedgerIfChanged 内の isSameState で行う。
+    const prevEntry = lastEntryFor(slug);
+    const isFirstPublish =
+      !prevEntry || prevEntry.action === "hide" || prevEntry.action === "tombstone";
+    const action = isFirstPublish ? "publish" : "update";
+    const qid = (existingQiitaFm && existingQiitaFm.id) || null;
+    recordLedgerIfChanged(slug, data, action, ["zenn", "qiita"], qid);
   } else {
     console.log(`  [HIDE] ${file} (unpublished -> private:true / published:false)`);
     hidden++;
+    const qid = (existingQiitaFm && existingQiitaFm.id) || null;
+    recordLedgerIfChanged(slug, data, "hide", ["zenn", "qiita"], qid);
   }
 }
 

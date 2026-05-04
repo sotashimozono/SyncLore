@@ -295,6 +295,12 @@ cd .deploy && npm run preview:qiita                   # Qiita プレビュー
 
 `SYNCLORE_DEPLOY_ROOT` を未指定にすると main の working tree に生成されますが `.gitignore` で commit できないので、ローカル確認用です。
 
+### 公開履歴 (`log/publish-history.jsonl`)
+
+`convert.js` は記事の状態変化 (publish / update / tombstone / hide) を JSON Lines で `log/publish-history.jsonl` に追記します。1 行 1 record で `ts` (JST ISO-8601) / `slug` / `action` / `title` / `platform` / `qiita_id` / `qiita_url` / `zenn_url` / `publish_at` を保存。
+何月何日に何が公開されたかを後から振り返れるほか、SNS シェア用の URL を即取得したり、connect 記事の選定に使えます。
+状態に変化がない再実行では何も追記されません (idempotent)。ファイルは main に commit され履歴として永続化されます (`grep slug log/publish-history.jsonl` で個別記事の遍歴を辿れる)。
+
 ### Branch 命名規約 (release-drafter autolabeler 用)
 
 PR を作るときの branch 名を以下に揃えると、release-drafter が自動でラベルを付け、リリースノートのカテゴリに振り分けてくれます。
