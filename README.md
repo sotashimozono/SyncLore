@@ -309,6 +309,16 @@ main へ直 push する場合はラベルが付かないので、Releases に履
 
 ---
 
+## 運用ガイド
+
+長期運用で参照するドキュメント:
+
+- [docs/UPSTREAM_TRACKING.md](docs/UPSTREAM_TRACKING.md) — upstream SyncLore の機能更新を fork に取り込む
+- [docs/PRIVATE_MIGRATION.md](docs/PRIVATE_MIGRATION.md) — public repo を private に変更する手順
+- [docs/BACKUP.md](docs/BACKUP.md) — repo / 生成物の backup 戦略
+
+---
+
 ## アーキテクチャ
 
 ```mermaid
