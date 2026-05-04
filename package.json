@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "convert": "node src/convert.js",
+    "dry-run": "node src/dry-run.js",
     "delete": "node src/synclore-delete.js",
     "index": "node src/build-index.js",
     "init:fork": "node src/init-fork.js",
