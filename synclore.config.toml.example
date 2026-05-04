@@ -1,0 +1,34 @@
+# synclore.config.toml — SyncLore 個人設定
+#
+# このファイルは fork した個人 repo にコミットして OK の方針 (個人 fork 内)。
+# 新規 fork したら `cp synclore.config.toml.example synclore.config.toml` で
+# コピーして自分用に書き換えてください。
+#
+# 全項目 optional。書かれていなければ既定値 fallback。
+# 実 token / 秘密情報は書かない (env var に固定)。
+
+[author]
+# 執筆者個人の表示名 / 連絡先
+name  = "sota shimozono"
+email = "user@example.com"
+
+[zenn]
+# Zenn のユーザ名 (URL: https://zenn.dev/<username>/articles/<slug>)
+username = "sotashimozono"
+
+[qiita]
+# Qiita のユーザ名 (URL: https://qiita.com/<username>/items/<id>)
+username = "sotashimozono"
+# Qiita API key を読む環境変数名 (実 token は書かない)
+api_key_env = "QIITA_TOKEN"
+
+[defaults]
+# `npm run new` 実行時に frontmatter へ埋める既定値
+emoji  = "📝"
+type   = "tech"          # tech | idea
+topics = ["julia"]       # 全 draft 共通の既定タグ
+
+[new]
+# `npm run new -- "<title>"` の挙動カスタマイズ
+slug_separator  = "-"
+slug_max_length = 60
