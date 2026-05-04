@@ -226,6 +226,10 @@ archive から戻すには `git mv drafts/archive/foo.md drafts/foo.md`。Qiita 
 
 archive 配下 (`drafts/archive/<slug>.md`) の記事も link target として有効です。記事は `articles/`・`public/` に残ったまま凍結されているため、`[[archived-slug]]` は通常通り公開 URL に解決されます。
 
+### 連載記事を書く (`series:`)
+
+複数記事をまたぐ連載を書くときは frontmatter に `series: "シリーズ名"` を書きます。同じ値を持つ全 draft の cross-link footer (「同じシリーズの記事」一覧) が convert 時に各記事末尾 (免責事項の上) に自動挿入されます。順序は `publish_at` 昇順 (無ければファイル名順)、自分自身は太字でリンクなし、未公開 sibling は plain text で表示されます。Zenn 出力は `https://zenn.dev/<user>/articles/<slug>`、Qiita 出力は `https://qiita.com/<user>/items/<id>` のリンク形式になります。
+
 ### 記事を rename する (aliases:)
 
 `drafts/foo.md` を `drafts/foo-v2.md` に rename したいとき、Qiita id が引き継げないと**新規投稿として重複**してしまいます。これを避けるには新ファイルのフロントマターで旧 slug を宣言します。

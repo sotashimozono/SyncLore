@@ -36,6 +36,7 @@
 const fs = require("fs");
 const path = require("path");
 const matter = require("gray-matter");
+const { collectSeriesMembers, renderSeriesFooter } = require("./lib/series");
 
 // ─── パス定義 ────────────────────────────────────────────────────────────────
 // SOURCE_ROOT: drafts/ と src/ がある場所 (= main branch の checkout)。
@@ -406,12 +407,32 @@ for (const file of draftFiles) {
     continue;
   }
 
-  // Wiki-link はプラットフォームごとに違う URL に展開されるので、body を 2 つ作る
+  // 連載 footer: data.series が文字列なら同 series の他 draft を集めて
+  // 本文末尾 (DISCLAIMER の前) にリンク一覧を挿入する。
+  // sibling が自分以外に居なければ renderSeriesFooter は空文字を返す (no-op)。
+  let seriesFooterZenn = "";
+  let seriesFooterQiita = "";
+  if (typeof data.series === "string" && data.series.trim()) {
+    const seriesMembers = collectSeriesMembers(DRAFTS_DIR, QIITA_DIR, data.series);
+    seriesFooterZenn = renderSeriesFooter(slug, seriesMembers, "zenn", {
+      zennUser: ZENN_USER,
+      qiitaUser: QIITA_USER,
+    });
+    seriesFooterQiita = renderSeriesFooter(slug, seriesMembers, "qiita", {
+      zennUser: ZENN_USER,
+      qiitaUser: QIITA_USER,
+    });
+  }
+
+  // Wiki-link はプラットフォームごとに違う URL に展開されるので、body を 2 つ作る。
+  // 順序: 本文 → series footer → disclaimer (一番最後)。
+  const zennBodyRaw = transformWikiLinks(parsed.content, "zenn", slugMap, slug);
+  const qiitaBodyRaw = transformWikiLinks(parsed.content, "qiita", slugMap, slug);
   const zennBody = appendDisclaimer(
-    transformWikiLinks(parsed.content, "zenn", slugMap, slug),
+    seriesFooterZenn ? `${zennBodyRaw.trimEnd()}\n\n${seriesFooterZenn}` : zennBodyRaw,
   );
   const qiitaBody = appendDisclaimer(
-    transformWikiLinks(parsed.content, "qiita", slugMap, slug),
+    seriesFooterQiita ? `${qiitaBodyRaw.trimEnd()}\n\n${seriesFooterQiita}` : qiitaBodyRaw,
   );
 
   fs.writeFileSync(zennPath, buildZennContent(data, zennBody, isPublic), "utf8");
