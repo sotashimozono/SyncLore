@@ -136,6 +136,17 @@ publish: false           # 下書き中は false
 `npm run dry-run` を実行すると、`drafts/*.md` 各ファイルが `convert.js` の次の実行でどう分類されるか (LIVE / SCHEDULED / HIDDEN / TOMBSTONE / SKIP) を**書き込みなし**で表示します。
 push して 1 時間後の cron が何をするか不安なときの最終確認に使ってください (Qiita DELETE 予定の `delete: true` も事前に見えます)。
 
+#### 個人設定を集約: `synclore.config.toml`
+
+執筆者ごとの設定 (author / Zenn-Qiita username / 標準 emoji / 標準 tags / `npm run new` の挙動) を 1 ファイルに集約できます。fork 後にコピーして使ってください。
+
+```bash
+cp synclore.config.toml.example synclore.config.toml
+# 自分用に編集 → そのまま git commit して OK (個人 fork 内で共有可)
+```
+
+`npm run new -- "<title>"` 実行時に `[defaults]` (emoji / type / topics) と `[new]` (slug_separator / slug_max_length) を参照して frontmatter 既定値を埋めます。ファイルが無い場合は従来通りの hardcoded 既定値が使われます。実 token は書かず、env var 名のみ宣言する方針です (`qiita.api_key_env = "QIITA_TOKEN"`)。
+
 ### 予約公開する (scheduled)
 
 未来の日時を指定して push しておけば、その時刻を過ぎた後の cron 実行で自動公開されます。

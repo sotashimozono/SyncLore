@@ -27,6 +27,7 @@
   },
   "homepage": "https://github.com/sotashimozono/SyncLore#readme",
   "dependencies": {
+    "@iarna/toml": "^2.2.5",
     "@qiita/qiita-cli": "^1.8.0",
     "gray-matter": "^4.0.3",
     "zenn-cli": "^0.4.6"
