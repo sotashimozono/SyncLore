@@ -118,6 +118,10 @@ publish: false           # 下書き中は false
 
 `publish: true` にして main へ push すると公開されます。
 
+### push 前に lint する
+
+`npm run lint` で `drafts/*.md` を一括検査できます。frontmatter の必須項目 (title / topics 1-5 / type / publish bool)、`publish_at` の ISO-8601 + TZ 形式、slug 衝突 (case-insensitive)、本文中の画像 path 存在、tag 名 (Qiita ルール)、`publish` と `publish_at` の矛盾などを確認します。read-only で自動 fix はしません。error が 1 つでもあれば exit 1、warning だけなら exit 0 (`--strict` で warning も exit 1)。
+
 ### push 前に確認する (dry-run)
 
 `npm run dry-run` を実行すると、`drafts/*.md` 各ファイルが `convert.js` の次の実行でどう分類されるか (LIVE / SCHEDULED / HIDDEN / TOMBSTONE / SKIP) を**書き込みなし**で表示します。

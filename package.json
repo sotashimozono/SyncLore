@@ -9,6 +9,7 @@
     "delete": "node src/synclore-delete.js",
     "index": "node src/build-index.js",
     "init:fork": "node src/init-fork.js",
+    "lint": "node src/lint.js",
     "preview:qiita": "npx qiita preview",
     "preview:zenn": "npx zenn preview"
   },
