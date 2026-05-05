@@ -1,5 +1,9 @@
 name-template: "$NEXT_PATCH_VERSION"
 tag-template: "v$NEXT_PATCH_VERSION"
+# PR event 上で release を更新するとき synthetic merge ref (refs/pull/N/merge) を
+# target_commitish に使おうとして "Validation Failed: invalid target_commitish" で
+# fail する。release は常に main に target を固定する。
+commitish: refs/heads/main
 version-resolver:
   default: patch
 
