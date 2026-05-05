@@ -1,0 +1,182 @@
+---
+title: BiblioFetch.jl を作った — DOI と arXiv id を投げると PDF と BibTeX が揃う Julia パッケージ
+tags:
+  - Julia
+  - OSS
+  - BibTeX
+  - arXiv
+  - paper-management
+private: false
+updated_at: '2026-05-05T08:49:52+09:00'
+id: cd497265db47f38124b2
+organization_url_name: null
+slide: false
+ignorePublish: false
+---
+
+## はじめに
+
+論文を書いたり読んだりしていると、**DOI と arXiv id のリストから PDF と BibTeX を一気に揃えたい**場面が頻繁にあります。Zotero や Mendeley は GUI 中心で reproducible にしづらく、`wget` や手書きスクリプトは出版社ごとの認証や preprint との同期で破綻しがちです。
+
+`BiblioFetch.jl` は Julia パッケージで、**DOI / arXiv id のリスト → ローカル PDF ストア + TOML メタデータ + BibTeX 出力 + 引用グラフ**までを 1 つのコマンドで回します。研究室のラップトップと SSH 越しの計算機を **同じストアに対して使える**ことを想定して設計しました。
+
+```bash
+$ bibliofetch fetch 10.1103/PhysRevB.99.214433
+✓ 10.1103/physrevb.99.214433  [unpaywall]  → ~/papers/10.1103_physrevb.99.214433.pdf
+```
+
+## なぜ作ったか — 既存ツールとの差分
+
+似たことをするツールはあります。BiblioFetch を書いた動機は、これらが **物理屋の workflow に決定的に欠けている要素** がそれぞれにあったからです：
+
+| ツール | 言語 | 不足 |
+|---|---|---|
+| Zotero / Mendeley | GUI | reproducible でない、git で管理できない |
+| paperscraper (Python) | Python | preprint と publisher PDF の区別ができない、TDM は Wiley のみ |
+| pyalex / openalex CLI | Python | OA PDF 中心、出版社認証 (TDM) なし |
+| paper-qa | Python | RAG 寄り、bulk DOI の確実な fetch ではない |
+
+BiblioFetch.jl の差別化価値：
+
+- **strict provenance** — preprint と version of record を区別、`source_policy = :strict` で出版社の正典のみ取る
+- **APS / Elsevier / Springer の TDM** — institutional access を Julia から直接使える
+- **`also_arxiv` companion** — publisher PDF と arXiv preprint を組で保管
+- **vault / topic 管理** — 個人 PKM (Personal Knowledge Management) として育てられる
+- **平文 TOML ストア** — `git` / `rsync` / `grep` が全部効く
+- **SSH リバーストンネル mode** — laptop ↔ 計算ホストで同じストアを共有できる
+
+## インストール
+
+```julia
+using Pkg
+Pkg.add("BiblioFetch")
+```
+
+毎回 1 秒以下の起動が欲しい場合は sysimage をビルド：
+
+```julia
+using BiblioFetch, PackageCompiler
+BiblioFetch.build()                  # 2–4 分
+```
+
+`~/.local/bin/bibliofetch` にラッパーが入るので `PATH` を通せば終わりです。
+
+```bash
+$ bibliofetch --help
+```
+
+## Quick start
+
+最小の `job.toml`：
+
+```toml
+[folder]
+target = "papers"
+
+[doi]
+list = [
+    "arxiv:1008.3477",                 # Schollwöck の MPS/DMRG レビュー
+    "10.1103/PhysRevB.99.214433",
+]
+```
+
+```bash
+$ bibliofetch run job.toml
+```
+
+これだけで `papers/` 配下に PDF、`papers/.metadata/` に各論文の TOML メタデータ、`papers/papers.bib` に BibTeX が落ちます。
+
+## ストア構造 — TOML 平文の利点
+
+```
+papers/
+├── arxiv__1008.3477.pdf
+├── 10.1103_physrevb.99.214433.pdf
+├── papers.bib
+└── .metadata/
+    ├── arxiv__1008.3477.toml
+    └── 10.1103_physrevb.99.214433.toml
+```
+
+メタデータ TOML は人間可読：
+
+```toml
+key = "10.1103/physrevb.99.214433"
+title = "Density matrix renormalization group..."
+journal = "Physical Review B"
+year = 2019
+authors = ["Sebastian Paeckel", "Thomas Köhler", ...]
+status = "ok"
+source = "unpaywall"
+sha256 = "f3b1...."
+fetched_at = "2026-05-04T08:23:11"
+```
+
+`git diff` でメタデータ更新が見える、`grep` で著者検索ができる、`rsync` で複数マシン間の同期が trivial。SQLite な仕組み (Zotero) には絶対に出来ない芸当です。
+
+## 環境検出 — laptop と計算ホストを同じツールで
+
+```bash
+$ bibliofetch env
+BiblioFetch runtime
+  hostname        : my-laptop
+  profile         : default
+  mode            : direct
+  proxy           : (none)  [none]
+  reachable       : true
+  store root      : /home/souta/papers
+  email           : souta@example.com
+```
+
+`~/.config/bibliofetch/config.toml` でプロファイルを定義しておくと、ホスト名で自動切り替え：
+
+```toml
+[defaults]
+email = "souta@example.com"
+store_root = "~/papers"
+
+[profiles.panza]
+proxy = "http://localhost:8080"     # SSH リバーストンネル
+store_root = "/scratch/souta/papers"
+```
+
+これで laptop でも `ssh panza` 先でも `bibliofetch fetch ...` が同じインタフェースで動きます。
+
+## ソースカスケード — 取り方の優先順
+
+DOI を投げると以下の順で試行：
+
+1. **Crossref** で書誌メタデータ取得
+2. **Unpaywall** で OA PDF があれば取る
+3. **arXiv** に preprint があれば取る
+4. **Semantic Scholar** (opt-in) で abstract と OA PDF
+5. **OpenAlex** (opt-in、v1.1.0+) で広範な metadata + OA
+6. **DOAJ** (opt-in、v1.1.0+) で gold OA journal
+7. **APS / Elsevier / Springer TDM** (opt-in) で institutional 認証越し
+8. **direct** で `doi.org` から取る（プロキシ経由）
+
+各ステップは独立で、`[fetch].sources` で組み合わせを選べます。失敗した際の挙動も `on_fail = :pending | :skip | :error` で選べます。
+
+## 続編
+
+このパッケージの肝な機能はそれぞれ別記事で深堀りします：
+
+- **citation graph 展開** — 1 本のレビュー論文から関連文献を 1 hop 全部取ってくる
+- **strict mode + TDM** — preprint と publisher PDF を厳格に区別する
+- **vault と job.toml** — 文献コレクションを git 管理可能な平文で持つ
+
+ソースは GitHub: [sotashimozono/BiblioFetch.jl](https://github.com/sotashimozono/BiblioFetch.jl)
+
+ドキュメント: [codes.sota-shimozono.com/BiblioFetch.jl/stable/](https://codes.sota-shimozono.com/BiblioFetch.jl/stable/)
+
+issue / PR 歓迎です。
+
+---
+
+<!-- SYNCLORE_DISCLAIMER_START -->
+> **免責事項**
+> この記事のコードは [MIT License](https://github.com/sotashimozono/SyncLore/blob/main/LICENSE) に基づき自由に利用できます。
+> ただし記事本文の著作権はすべて筆者に帰属し、無断転載・再利用を禁じます。
+> 記事の内容は執筆時点のものであり、正確性・完全性を保証しません。
+> 本記事の利用によって生じたいかなる損害についても筆者は責任を負いません。
+<!-- SYNCLORE_DISCLAIMER_END -->
