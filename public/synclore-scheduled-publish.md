@@ -7,7 +7,7 @@ tags:
   - GitHubActions
   - Zenn
 private: false
-updated_at: '2026-07-08T21:21:10+09:00'
+updated_at: '2026-07-09T00:13:01+09:00'
 id: 5d9bfec213ccf30dcd99
 organization_url_name: null
 slide: false
