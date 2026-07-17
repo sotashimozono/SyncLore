@@ -1,13 +1,13 @@
 ---
 title: 投稿自動化ツール SyncLore を使った記事の予約投稿
 tags:
-  - Qiita
   - automation
   - CI
   - GitHubActions
+  - Qiita
   - Zenn
 private: false
-updated_at: '2026-07-17T09:00:37+09:00'
+updated_at: '2026-07-17T12:55:54+09:00'
 id: 5d9bfec213ccf30dcd99
 organization_url_name: null
 slide: false
