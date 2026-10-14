@@ -279,7 +279,9 @@ archive 配下 (`drafts/archive/<slug>.md`) の記事も link target として�
 
 ### 連載記事を書く (`series:`)
 
-複数記事をまたぐ連載を書くときは frontmatter に `series: "シリーズ名"` を書きます。同じ値を持つ全 draft の cross-link footer (「同じシリーズの記事」一覧) が convert 時に各記事末尾 (免責事項の上) に自動挿入されます。順序は `publish_at` 昇順 (無ければファイル名順)、自分自身は太字でリンクなし、未公開 sibling は plain text で表示されます。Zenn 出力は `https://zenn.dev/<user>/articles/<slug>`、Qiita 出力は `https://qiita.com/<user>/items/<id>` のリンク形式になります。
+複数記事をまたぐ連載を書くときは frontmatter に `series: "シリーズ名"` を書きます。同じ値を持つ全 draft の cross-link footer (「同じシリーズの記事」一覧) が convert 時に各記事末尾 (免責事項の上) に自動挿入されます。記事には隣り合う記事への `← 前の記事` / `次の記事 →` も挿入されます。最初の記事に前リンクはなく、最後の記事に次リンクはありません。
+
+並び順を固定したい場合は各記事に整数の `series_order` を指定します。同じ連載の全記事に指定した場合はその昇順を使い、指定がない/一部だけの場合は従来通り `publish_at` 昇順 (無ければファイル名順) を使います。自分自身は一覧内で太字、未公開 sibling は plain text です。Zenn 出力は `https://zenn.dev/<user>/articles/<slug>`、Qiita 出力は `https://qiita.com/<user>/items/<id>` のリンク形式になります。`INDEX.md` は連載ごとにまとめ、series 未指定の記事を `(未分類)` に表示します。
 
 新しい記事を追加すると、同 series の sibling 記事の footer も自動再生成されて両プラットフォームに再 push されます。`convert.js` は既存の `articles/<slug>.md` / `public/<slug>.md` と diff を取り、内容が変わった sibling だけを `[REPUBLISH]` として書き出します (完全一致なら `[NOOP]` で書き込み自体をスキップ)。ログ例:
 

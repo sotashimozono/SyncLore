@@ -74,16 +74,20 @@ function collectSeriesMembers(draftsDir, qiitaDir, seriesName) {
     members.push({
       slug,
       title: typeof fm.title === "string" ? fm.title : slug,
+      series_order: Number.isSafeInteger(fm.series_order) ? fm.series_order : null,
       publish_at: publishAt,
       qiita_id: qiitaId,
       zenn_published: zennPublished,
     });
   }
 
-  // 順序: publish_at 昇順。publish_at が無いものはファイル名 (slug) 昇順。
-  // publish_at あり / 無しが混在する場合は「publish_at あり」を先に置く
-  // (連載は普通すべて publish_at で並ぶか、すべて無しのどちらか)。
+  // Use explicit ordering only when every member opts in; otherwise preserve
+  // the original publish_at/slug ordering for existing series.
+  const hasCompleteSeriesOrder = members.every((member) => member.series_order !== null);
   members.sort((a, b) => {
+    if (hasCompleteSeriesOrder) {
+      return a.series_order - b.series_order || a.slug.localeCompare(b.slug);
+    }
     if (a.publish_at && b.publish_at) {
       return a.publish_at.getTime() - b.publish_at.getTime();
     }
@@ -93,6 +97,36 @@ function collectSeriesMembers(draftsDir, qiitaDir, seriesName) {
   });
 
   return members;
+}
+
+function renderSeriesNavigation(currentSlug, members) {
+  if (!Array.isArray(members) || members.length < 2) return "";
+  const currentIndex = members.findIndex((member) => member.slug === currentSlug);
+  if (currentIndex < 0) return "";
+
+  const links = [];
+  if (currentIndex > 0) links.push(`← [[${members[currentIndex - 1].slug}]]`);
+  if (currentIndex < members.length - 1) links.push(`[[${members[currentIndex + 1].slug}]] →`);
+  return links.join("　|　");
+}
+
+function groupRowsBySeries(rows) {
+  const groups = new Map();
+  for (const row of rows) {
+    const series = typeof row.series === "string" && row.series.trim() ? row.series.trim() : null;
+    if (!groups.has(series)) groups.set(series, []);
+    groups.get(series).push(row);
+  }
+
+  return [...groups.entries()]
+    .map(([series, articles]) => ({ series, articles }))
+    .sort((a, b) => {
+      if (a.series === null) return 1;
+      if (b.series === null) return -1;
+      const aLatest = a.articles.find((article) => article.updated_at)?.updated_at || "";
+      const bLatest = b.articles.find((article) => article.updated_at)?.updated_at || "";
+      return bLatest.localeCompare(aLatest) || a.series.localeCompare(b.series);
+    });
 }
 
 /**
@@ -145,5 +179,7 @@ function renderSeriesFooter(currentSlug, members, platform, opts) {
 
 module.exports = {
   collectSeriesMembers,
+  renderSeriesNavigation,
   renderSeriesFooter,
+  groupRowsBySeries,
 };
