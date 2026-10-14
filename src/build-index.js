@@ -24,6 +24,7 @@
 const fs = require("fs");
 const path = require("path");
 const matter = require("gray-matter");
+const { groupRowsBySeries } = require("./lib/series");
 
 const SOURCE_ROOT = path.resolve(__dirname, "..");
 const DEPLOY_ROOT = process.env.SYNCLORE_DEPLOY_ROOT
@@ -122,6 +123,7 @@ for (const file of draftFiles) {
     status,
     updated_at,
     publish_at,
+    series: typeof draftFm.series === "string" ? draftFm.series : null,
     qiita_id: qiitaFm.id || null,
   });
 }
@@ -141,24 +143,29 @@ lines.push(
   "`drafts/<slug>.md` ([main branch](../../tree/main/drafts)) で記事を管理しています。詳細は [main の README](../../blob/main/README.md) を参照。",
 );
 lines.push("");
-lines.push("| Slug | Title | Status | Qiita | Zenn | Last update |");
-lines.push("| --- | --- | --- | --- | --- | --- |");
-for (const r of rows) {
-  // SCHEDULED は "Last update" 列に予約時刻を表示 (まだ未公開なので updated_at は空)。
-  let updatedCell = "—";
-  if (r.status === "SCHEDULED" && r.publish_at) {
-    updatedCell = `→ ${r.publish_at.slice(0, 16).replace("T", " ")}`;
-  } else if (r.updated_at) {
-    updatedCell = r.updated_at.slice(0, 10);
+const tableHeader = ["| Slug | Title | Status | Qiita | Zenn | Last update |", "| --- | --- | --- | --- | --- | --- |"];
+const groups = groupRowsBySeries(rows);
+for (const group of groups) {
+  lines.push(`## ${group.series || "(未分類)"}`, "", ...tableHeader);
+  for (const r of group.articles) {
+    // SCHEDULED は "Last update" 列に予約時刻を表示 (まだ未公開なので updated_at は空)。
+    let updatedCell = "—";
+    if (r.status === "SCHEDULED" && r.publish_at) {
+      updatedCell = `→ ${r.publish_at.slice(0, 16).replace("T", " ")}`;
+    } else if (r.updated_at) {
+      updatedCell = r.updated_at.slice(0, 10);
+    }
+    lines.push(
+      `| \`${r.slug}\` | ${escapeCell(r.title)} | ${r.status} | ${qiitaLinkCell(r.qiita_id, r.status)} | ${zennLinkCell(r.slug, r.status)} | ${updatedCell} |`,
+    );
   }
-  lines.push(
-    `| \`${r.slug}\` | ${escapeCell(r.title)} | ${r.status} | ${qiitaLinkCell(r.qiita_id, r.status)} | ${zennLinkCell(r.slug, r.status)} | ${updatedCell} |`,
-  );
+  lines.push("");
 }
-if (rows.length === 0) {
+if (groups.length === 0) {
+  lines.push(...tableHeader);
   lines.push("| (記事なし) | — | — | — | — | — |");
+  lines.push("");
 }
-lines.push("");
 
 fs.writeFileSync(INDEX_PATH, lines.join("\n"), "utf8");
 console.log(`Wrote ${INDEX_PATH} with ${rows.length} article(s).`);

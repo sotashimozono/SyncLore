@@ -36,7 +36,7 @@
 const fs = require("fs");
 const path = require("path");
 const matter = require("gray-matter");
-const { collectSeriesMembers, renderSeriesFooter } = require("./lib/series");
+const { collectSeriesMembers, renderSeriesNavigation, renderSeriesFooter } = require("./lib/series");
 const { appendLedger, lastEntryFor, isSameState } = require("./lib/ledger");
 const wikilink = require("./lib/wikilink");
 
@@ -336,8 +336,10 @@ for (const file of draftFiles) {
   // sibling が自分以外に居なければ renderSeriesFooter は空文字を返す (no-op)。
   let seriesFooterZenn = "";
   let seriesFooterQiita = "";
+  let seriesNavigation = "";
   if (typeof data.series === "string" && data.series.trim()) {
     const seriesMembers = collectSeriesMembers(DRAFTS_DIR, QIITA_DIR, data.series);
+    seriesNavigation = renderSeriesNavigation(slug, seriesMembers);
     seriesFooterZenn = renderSeriesFooter(slug, seriesMembers, "zenn", {
       zennUser: ZENN_USER,
       qiitaUser: QIITA_USER,
@@ -350,7 +352,10 @@ for (const file of draftFiles) {
 
   // Wiki-link はプラットフォームごとに違う URL に展開されるので、body を 2 つ作る。
   // 順序: 本文 → wikilink 解決 → series footer → disclaimer (一番最後)。
-  const zennResolved = wikilink.resolveWikilinks(parsed.content, {
+  const bodyWithSeriesNavigation = seriesNavigation
+    ? `${parsed.content.trimEnd()}\n\n${seriesNavigation}`
+    : parsed.content;
+  const zennResolved = wikilink.resolveWikilinks(bodyWithSeriesNavigation, {
     platform: "zenn",
     slugMap,
     currentSlug: slug,
@@ -359,7 +364,7 @@ for (const file of draftFiles) {
     repoFull: REPO_FULL,
   });
   logWikilinkDiagnostics(zennResolved, slug);
-  const qiitaResolved = wikilink.resolveWikilinks(parsed.content, {
+  const qiitaResolved = wikilink.resolveWikilinks(bodyWithSeriesNavigation, {
     platform: "qiita",
     slugMap,
     currentSlug: slug,
