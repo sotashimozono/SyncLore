@@ -100,7 +100,10 @@ function collectSeriesMembers(draftsDir, qiitaDir, seriesName) {
 }
 
 function renderSeriesNavigation(currentSlug, members) {
-  if (!Array.isArray(members) || members.length < 2) return "";
+  if (!Array.isArray(members)) return "";
+  // Link only episodes readers can open; an unpublished neighbour would be a dead link.
+  members = members.filter((member) => member.slug === currentSlug || member.zenn_published);
+  if (members.length < 2) return "";
   const currentIndex = members.findIndex((member) => member.slug === currentSlug);
   if (currentIndex < 0) return "";
 

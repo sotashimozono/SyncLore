@@ -19,9 +19,9 @@ function createDrafts(t, entries) {
 
 test("series_order controls the adjacent links when every member specifies it", (t) => {
   const drafts = createDrafts(t, {
-    third: { series: "alpha", series_order: 3, publish_at: "2026-01-01T00:00:00Z" },
-    first: { series: "alpha", series_order: 1, publish_at: "2026-03-01T00:00:00Z" },
-    second: { series: "alpha", series_order: 2, publish_at: "2026-02-01T00:00:00Z" },
+    third: { series: "alpha", publish: true, series_order: 3, publish_at: "2026-01-01T00:00:00Z" },
+    first: { series: "alpha", publish: true, series_order: 1, publish_at: "2026-03-01T00:00:00Z" },
+    second: { series: "alpha", publish: true, series_order: 2, publish_at: "2026-02-01T00:00:00Z" },
   });
   const members = collectSeriesMembers(drafts, null, "alpha");
   assert.deepEqual(members.map((member) => member.slug), ["first", "second", "third"]);
@@ -50,4 +50,29 @@ test("index rows are grouped by series with unclassified articles last", () => {
     ["alpha", ["alpha-1", "alpha-2"]],
     [null, ["loose"]],
   ]);
+});
+
+test("duplicate series_order values fall back to slug order and stay stable", (t) => {
+  const drafts = createDrafts(t, {
+    "b-side": { series: "alpha", publish: true, series_order: 2 },
+    opener: { series: "alpha", publish: true, series_order: 1 },
+    "a-side": { series: "alpha", publish: true, series_order: 2 },
+  });
+  const first = collectSeriesMembers(drafts, null, "alpha");
+  assert.deepEqual(first.map((member) => member.slug), ["opener", "a-side", "b-side"]);
+  assert.deepEqual(collectSeriesMembers(drafts, null, "alpha"), first);
+  assert.equal(renderSeriesNavigation("a-side", first), "← [[opener]]　|　[[b-side]] →");
+});
+
+test("navigation skips unpublished neighbours", (t) => {
+  const drafts = createDrafts(t, {
+    one: { series: "alpha", series_order: 1, publish: true },
+    two: { series: "alpha", series_order: 2, publish: false, publish_at: "2999-01-01T00:00:00Z" },
+    three: { series: "alpha", series_order: 3, publish: true },
+    four: { series: "alpha", series_order: 4, publish: false },
+  });
+  const members = collectSeriesMembers(drafts, null, "alpha");
+  assert.equal(renderSeriesNavigation("one", members), "[[three]] →");
+  assert.equal(renderSeriesNavigation("three", members), "← [[one]]");
+  assert.equal(renderSeriesNavigation("two", members), "← [[one]]　|　[[three]] →");
 });
